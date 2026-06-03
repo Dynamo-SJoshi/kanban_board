@@ -26,13 +26,7 @@ import {
   X,
 } from 'lucide-react'
 
-type Classification =
-  | 'Planning'
-  | 'Design'
-  | 'Build'
-  | 'QA'
-  | 'Blocked'
-  | 'Done'
+type Classification = string
 
 type Card = {
   id: string
@@ -49,15 +43,6 @@ type Column = {
   cards: Card[]
 }
 
-const CLASSIFICATIONS: Classification[] = [
-  'Planning',
-  'Design',
-  'Build',
-  'QA',
-  'Blocked',
-  'Done',
-]
-
 const COLUMN_ACCENTS = [
   'bg-slate-400',
   'bg-cyan-500',
@@ -67,7 +52,7 @@ const COLUMN_ACCENTS = [
   'bg-rose-500',
 ]
 
-const CLASSIFICATION_STYLES: Record<Classification, string> = {
+const CLASSIFICATION_STYLES: Record<string, string> = {
   Planning: 'bg-slate-100 text-slate-600',
   Design: 'bg-cyan-50 text-cyan-700',
   Build: 'bg-violet-50 text-violet-700',
@@ -108,7 +93,7 @@ function KanbanCard({ card, columnId, onDeleteCard }: CardProps) {
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[card.classification]}`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[card.classification] ?? 'bg-slate-100 text-slate-600'}`}
         >
           <GripVertical className="h-3.5 w-3.5" />
           {card.classification}
@@ -259,22 +244,14 @@ function KanbanColumn({
           placeholder="Add a new card"
         />
 
-        <select
+        <input
           value={newCardClassification}
           onChange={(event) =>
-            onUpdateNewCardClassification(
-              column.id,
-              event.target.value as Classification,
-            )
+            onUpdateNewCardClassification(column.id, event.target.value)
           }
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-        >
-          {CLASSIFICATIONS.map((classification) => (
-            <option key={classification} value={classification}>
-              {classification}
-            </option>
-          ))}
-        </select>
+          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+          placeholder="Classification, e.g. Planning"
+        />
 
         <button
           type="button"
@@ -356,7 +333,7 @@ function App() {
     const cardTitle = (newCardTitles[columnId] ?? '').trim()
     if (!cardTitle) return
 
-    const classification = newCardClassifications[columnId] ?? 'Planning'
+    const classification = (newCardClassifications[columnId] ?? 'Planning').trim() || 'Planning'
 
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
@@ -689,7 +666,7 @@ function App() {
                 <div className="w-[20rem] rounded-2xl border border-cyan-200 bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[activeCard.classification]}`}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[activeCard.classification] ?? 'bg-slate-100 text-slate-600'}`}
                     >
                       <GripVertical className="h-3.5 w-3.5" />
                       {activeCard.classification}
