@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   closestCorners,
   DndContext,
@@ -26,12 +26,20 @@ import {
   X,
 } from 'lucide-react'
 
+type Classification =
+  | 'Planning'
+  | 'Design'
+  | 'Build'
+  | 'QA'
+  | 'Blocked'
+  | 'Done'
+
 type Card = {
   id: string
   title: string
   description?: string
   due?: string
-  label?: string
+  classification: Classification
 }
 
 type Column = {
@@ -39,6 +47,33 @@ type Column = {
   title: string
   accent: string
   cards: Card[]
+}
+
+const CLASSIFICATIONS: Classification[] = [
+  'Planning',
+  'Design',
+  'Build',
+  'QA',
+  'Blocked',
+  'Done',
+]
+
+const COLUMN_ACCENTS = [
+  'bg-slate-400',
+  'bg-cyan-500',
+  'bg-violet-500',
+  'bg-emerald-500',
+  'bg-amber-500',
+  'bg-rose-500',
+]
+
+const CLASSIFICATION_STYLES: Record<Classification, string> = {
+  Planning: 'bg-slate-100 text-slate-600',
+  Design: 'bg-cyan-50 text-cyan-700',
+  Build: 'bg-violet-50 text-violet-700',
+  QA: 'bg-amber-50 text-amber-700',
+  Blocked: 'bg-rose-50 text-rose-700',
+  Done: 'bg-emerald-50 text-emerald-700',
 }
 
 const initialColumns: Column[] = []
@@ -72,9 +107,11 @@ function KanbanCard({ card, columnId, onDeleteCard }: CardProps) {
       }`}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[card.classification]}`}
+        >
           <GripVertical className="h-3.5 w-3.5" />
-          {card.label ?? 'Task'}
+          {card.classification}
         </span>
 
         <button
@@ -113,21 +150,28 @@ function KanbanCard({ card, columnId, onDeleteCard }: CardProps) {
 type ColumnProps = {
   column: Column
   newCardTitle: string
+  newCardClassification: Classification
   onAddCard: (columnId: string) => void
   onDeleteCard: (columnId: string, cardId: string) => void
   onDeleteColumn: (columnId: string) => void
   onRenameColumn: (columnId: string, title: string) => void
   onUpdateNewCardTitle: (columnId: string, title: string) => void
+  onUpdateNewCardClassification: (
+    columnId: string,
+    classification: Classification,
+  ) => void
 }
 
 function KanbanColumn({
   column,
   newCardTitle,
+  newCardClassification,
   onAddCard,
   onDeleteCard,
   onDeleteColumn,
   onRenameColumn,
   onUpdateNewCardTitle,
+  onUpdateNewCardClassification,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -186,7 +230,10 @@ function KanbanColumn({
         </div>
       </div>
 
-      <SortableContext items={column.cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={column.cards.map((card) => card.id)}
+        strategy={verticalListSortingStrategy}
+      >
         <div className="space-y-3">
           {column.cards.map((card) => (
             <KanbanCard
@@ -212,6 +259,23 @@ function KanbanColumn({
           placeholder="Add a new card"
         />
 
+        <select
+          value={newCardClassification}
+          onChange={(event) =>
+            onUpdateNewCardClassification(
+              column.id,
+              event.target.value as Classification,
+            )
+          }
+          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+        >
+          {CLASSIFICATIONS.map((classification) => (
+            <option key={classification} value={classification}>
+              {classification}
+            </option>
+          ))}
+        </select>
+
         <button
           type="button"
           onClick={() => onAddCard(column.id)}
@@ -228,7 +292,11 @@ function KanbanColumn({
 function App() {
   const [columns, setColumns] = useState(initialColumns)
   const [newCardTitles, setNewCardTitles] = useState<Record<string, string>>({})
+  const [newCardClassifications, setNewCardClassifications] = useState<
+    Record<string, Classification>
+  >({})
   const [newColumnTitle, setNewColumnTitle] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [activeCard, setActiveCard] = useState<Card | null>(null)
 
   const sensors = useSensors(
@@ -240,11 +308,55 @@ function App() {
   )
 
   const totalCards = columns.reduce((sum, column) => sum + column.cards.length, 0)
-  const doneCards = columns.find((column) => column.id === 'done')?.cards.length ?? 0
+  const doneCards = columns.reduce(
+    (sum, column) =>
+      sum + column.cards.filter((card) => card.classification === 'Done').length,
+    0,
+  )
+
+  const visibleColumns = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+
+    if (!query) return columns
+
+    return columns
+      .map((column) => {
+        const laneMatches = column.title.toLowerCase().includes(query)
+        if (laneMatches) return column
+
+        const filteredCards = column.cards.filter((card) => {
+          const haystack = [
+            card.title,
+            card.description ?? '',
+            card.due ?? '',
+            card.classification,
+          ]
+            .join(' ')
+            .toLowerCase()
+
+          return haystack.includes(query)
+        })
+
+        if (filteredCards.length === 0) return null
+
+        return {
+          ...column,
+          cards: filteredCards,
+        }
+      })
+      .filter((column): column is Column => column !== null)
+  }, [columns, searchQuery])
+
+  const visibleCardCount = visibleColumns.reduce(
+    (sum, column) => sum + column.cards.length,
+    0,
+  )
 
   function addCard(columnId: string) {
     const cardTitle = (newCardTitles[columnId] ?? '').trim()
     if (!cardTitle) return
+
+    const classification = newCardClassifications[columnId] ?? 'Planning'
 
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
@@ -256,7 +368,7 @@ function App() {
                 {
                   id: crypto.randomUUID(),
                   title: cardTitle,
-                  label: 'New',
+                  classification,
                 },
               ],
             }
@@ -283,19 +395,22 @@ function App() {
     )
   }
 
-  function addColumn() {
-    const title = newColumnTitle.trim()
-    if (!title) return
+  function addColumn(titleInput?: string) {
+    const title = titleInput?.trim() || newColumnTitle.trim()
 
-    setColumns((previousColumns) => [
-      ...previousColumns,
-      {
-        id: crypto.randomUUID(),
-        title,
-        accent: 'bg-slate-400',
-        cards: [],
-      },
-    ])
+    setColumns((previousColumns) => {
+      const nextTitle = title || `Untitled lane ${previousColumns.length + 1}`
+
+      return [
+        ...previousColumns,
+        {
+          id: crypto.randomUUID(),
+          title: nextTitle,
+          accent: COLUMN_ACCENTS[previousColumns.length % COLUMN_ACCENTS.length],
+          cards: [],
+        },
+      ]
+    })
 
     setNewColumnTitle('')
   }
@@ -318,6 +433,16 @@ function App() {
     setNewCardTitles((previousTitles) => ({
       ...previousTitles,
       [columnId]: title,
+    }))
+  }
+
+  function updateNewCardClassification(
+    columnId: string,
+    classification: Classification,
+  ) {
+    setNewCardClassifications((previousClassifications) => ({
+      ...previousClassifications,
+      [columnId]: classification,
     }))
   }
 
@@ -363,7 +488,11 @@ function App() {
 
           return {
             ...column,
-            cards: arrayMove(column.cards, oldIndex, newIndex === -1 ? column.cards.length - 1 : newIndex),
+            cards: arrayMove(
+              column.cards,
+              oldIndex,
+              newIndex === -1 ? column.cards.length - 1 : newIndex,
+            ),
           }
         }),
       )
@@ -371,8 +500,12 @@ function App() {
     }
 
     setColumns((previousColumns) => {
-      const sourceColumn = previousColumns.find((column) => column.id === sourceColumnId)
-      const targetColumn = previousColumns.find((column) => column.id === targetColumnId)
+      const sourceColumn = previousColumns.find(
+        (column) => column.id === sourceColumnId,
+      )
+      const targetColumn = previousColumns.find(
+        (column) => column.id === targetColumnId,
+      )
 
       if (!sourceColumn || !targetColumn) return previousColumns
 
@@ -425,19 +558,35 @@ function App() {
                 </span>
               </div>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                A clean, professional kanban board with drag-and-drop, inline lane editing, and focused card styling.
+                A clean, professional kanban board with drag-and-drop, inline lane editing, and card
+                classification.
               </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-400 shadow-sm sm:w-[22rem]">
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-400 shadow-sm sm:w-[22rem]">
                 <Search className="h-4 w-4" />
-                <span className="text-sm">Search cards, labels, or lane names</span>
-              </div>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search cards, classifications, or lane names"
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </label>
 
               <button
                 type="button"
-                onClick={addColumn}
+                onClick={() => addColumn()}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 <Plus className="h-4 w-4" />
@@ -455,6 +604,11 @@ function App() {
               <CalendarDays className="h-3.5 w-3.5" />
               Updated just now
             </span>
+            {searchQuery ? (
+              <span className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">
+                {visibleCardCount} shown
+              </span>
+            ) : null}
           </div>
         </header>
 
@@ -465,63 +619,80 @@ function App() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="overflow-x-auto pb-2">
-              <div className="flex min-h-[42rem] items-start gap-4 pr-2">
-                {columns.map((column) => (
-                  <KanbanColumn
-                    key={column.id}
-                    column={column}
-                    newCardTitle={newCardTitles[column.id] ?? ''}
-                    onAddCard={addCard}
-                    onDeleteCard={deleteCard}
-                    onDeleteColumn={deleteColumn}
-                    onRenameColumn={renameColumn}
-                    onUpdateNewCardTitle={updateNewCardTitle}
-                  />
-                ))}
+            {visibleColumns.length > 0 ? (
+              <div className="overflow-x-auto pb-2">
+                <div className="flex min-h-[42rem] items-start gap-4 pr-2">
+                  {visibleColumns.map((column) => (
+                    <KanbanColumn
+                      key={column.id}
+                      column={column}
+                      newCardTitle={newCardTitles[column.id] ?? ''}
+                      newCardClassification={newCardClassifications[column.id] ?? 'Planning'}
+                      onAddCard={addCard}
+                      onDeleteCard={deleteCard}
+                      onDeleteColumn={deleteColumn}
+                      onRenameColumn={renameColumn}
+                      onUpdateNewCardTitle={updateNewCardTitle}
+                      onUpdateNewCardClassification={updateNewCardClassification}
+                    />
+                  ))}
 
-                <section className="w-[20rem] shrink-0 rounded-[28px] border border-dashed border-cyan-200 bg-white/80 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)] backdrop-blur">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
-                    New lane
-                  </p>
-                  <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
-                    Create another stage
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Add a lane for review, waiting, blocked work, or any custom workflow step.
-                  </p>
+                  <section className="w-[20rem] shrink-0 rounded-[28px] border border-dashed border-cyan-200 bg-white/80 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)] backdrop-blur">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
+                      New lane
+                    </p>
+                    <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+                      Create another stage
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Add a lane for review, waiting, blocked work, or any custom workflow step.
+                    </p>
 
-                  <input
-                    value={newColumnTitle}
-                    onChange={(event) => setNewColumnTitle(event.target.value)}
+                    <input
+                      value={newColumnTitle}
+                      onChange={(event) => setNewColumnTitle(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         addColumn()
                       }
                     }}
-                    className="mt-5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                    placeholder="Lane title"
-                  />
+                      className="mt-5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                      placeholder="Lane title"
+                    />
 
-                  <button
-                    type="button"
-                    onClick={addColumn}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create lane
-                  </button>
-                </section>
+                    <button
+                      type="button"
+                      onClick={() => addColumn()}
+                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create lane
+                    </button>
+                  </section>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/70 p-10 text-center shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+                <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+                  {searchQuery ? `No matches for "${searchQuery}"` : 'No lanes yet'}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {searchQuery
+                    ? 'Try a different lane title, card title, classification, or due text.'
+                    : 'Create your first lane using the button in the header or the lane panel.'}
+                </p>
+              </div>
+            )}
 
             <DragOverlay>
               {activeCard ? (
                 <div className="w-[20rem] rounded-2xl border border-cyan-200 bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[activeCard.classification]}`}
+                    >
                       <GripVertical className="h-3.5 w-3.5" />
-                      {activeCard.label ?? 'Task'}
+                      {activeCard.classification}
                     </span>
                     <span className="text-xs font-medium text-slate-400">Dragging</span>
                   </div>
