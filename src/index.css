@@ -4,7 +4,36 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  min-width: 320px;
+  font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.25);
+  color: #0f172a;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.55);
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.45);
 }
