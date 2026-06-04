@@ -1007,7 +1007,9 @@ function App() {
       return
     }
     if (!boardId) {
-      setBoardError('Kanban board is still loading. Please wait a moment.')
+      if (!boardError) {
+        setBoardError('Kanban board is still loading. Please wait a moment.')
+      }
       return
     }
 
