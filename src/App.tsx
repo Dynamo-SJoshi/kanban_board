@@ -1002,12 +1002,21 @@ function App() {
   }
 
   async function addColumn(titleInput?: string) {
-    if (!user || !boardId) return
+    if (!user) {
+      setBoardError('User session not found. Please sign in.')
+      return
+    }
+    if (!boardId) {
+      setBoardError('Kanban board is still loading. Please wait a moment.')
+      return
+    }
 
     const title = titleInput?.trim() || newColumnTitle.trim()
     const position = columns.length
     const nextTitle = title || `Untitled lane ${position + 1}`
     const accent = COLUMN_ACCENTS[position % COLUMN_ACCENTS.length]
+
+    console.log('Inserting new column:', { nextTitle, boardId, ownerId: user.id })
 
     const { data: createdColumn, error } = await supabase
       .from('columns')
@@ -1022,7 +1031,8 @@ function App() {
       .single<ColumnRow>()
 
     if (error) {
-      setBoardError(error.message)
+      console.error('Database insertion failed for column:', error)
+      setBoardError(`Database Error: ${error.message}`)
       return
     }
 
