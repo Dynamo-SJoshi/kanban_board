@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   closestCorners,
   DndContext,
@@ -21,10 +21,18 @@ import {
   CalendarDays,
   CheckCircle2,
   GripVertical,
+  KeyRound,
+  Loader2,
+  Lock,
+  LogOut,
+  Mail,
   Plus,
   Search,
+  ShieldCheck,
   X,
 } from 'lucide-react'
+import type { Provider, User } from '@supabase/supabase-js'
+import { supabase } from './lib/supabase'
 
 type Classification = string
 
@@ -34,13 +42,37 @@ type Card = {
   description?: string
   due?: string
   classification: Classification
+  position: number
 }
 
 type Column = {
   id: string
   title: string
   accent: string
+  position: number
   cards: Card[]
+}
+
+type BoardRow = {
+  id: string
+  title: string
+}
+
+type ColumnRow = {
+  id: string
+  title: string
+  accent: string
+  position: number
+}
+
+type CardRow = {
+  id: string
+  column_id: string
+  title: string
+  description: string | null
+  due: string | null
+  classification: string
+  position: number
 }
 
 const COLUMN_ACCENTS = [
@@ -62,6 +94,309 @@ const CLASSIFICATION_STYLES: Record<string, string> = {
 }
 
 const initialColumns: Column[] = []
+
+type AuthMode = 'signin' | 'signup'
+
+function mapBoardRowsToColumns(columnRows: ColumnRow[], cardRows: CardRow[]) {
+  const cardsByColumn = new Map<string, Card[]>()
+
+  cardRows.forEach((card) => {
+    const cards = cardsByColumn.get(card.column_id) ?? []
+    cards.push({
+      id: card.id,
+      title: card.title,
+      description: card.description ?? undefined,
+      due: card.due ?? undefined,
+      classification: card.classification,
+      position: card.position,
+    })
+    cardsByColumn.set(card.column_id, cards)
+  })
+
+  return columnRows.map((column) => ({
+    id: column.id,
+    title: column.title,
+    accent: column.accent,
+    position: column.position,
+    cards: (cardsByColumn.get(column.id) ?? []).sort(
+      (first, second) => first.position - second.position,
+    ),
+  }))
+}
+
+function normalizeCardPositions(columnsToNormalize: Column[]) {
+  return columnsToNormalize.map((column) => ({
+    ...column,
+    cards: column.cards.map((card, position) => ({
+      ...card,
+      position,
+    })),
+  }))
+}
+
+async function updateCardPositions(columnsToSave: Column[]) {
+  const updates = columnsToSave.flatMap((column) =>
+    column.cards.map(async (card, position) => {
+      const { error } = await supabase
+        .from('cards')
+        .update({
+          column_id: column.id,
+          position,
+        })
+        .eq('id', card.id)
+
+      if (error) {
+        throw error
+      }
+    }),
+  )
+
+  await Promise.all(updates)
+}
+
+function AuthScreen() {
+  const [authMode, setAuthMode] = useState<AuthMode>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  async function handlePasswordAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setMessage('')
+    setError('')
+    setIsSubmitting(true)
+
+    const result =
+      authMode === 'signin'
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: window.location.origin,
+            },
+          })
+
+    setIsSubmitting(false)
+
+    if (result.error) {
+      setError(result.error.message)
+      return
+    }
+
+    setMessage(
+      authMode === 'signin'
+        ? 'Signed in successfully.'
+        : 'Account created. Check your email if confirmation is enabled.',
+    )
+  }
+
+  async function handleMagicLink() {
+    setMessage('')
+    setError('')
+
+    if (!email.trim()) {
+      setError('Enter your email before requesting a magic link.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    const { error: magicLinkError } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    })
+
+    setIsSubmitting(false)
+
+    if (magicLinkError) {
+      setError(magicLinkError.message)
+      return
+    }
+
+    setMessage('Magic link sent. Check your email to continue.')
+  }
+
+  async function handleSocialLogin(provider: Provider) {
+    setMessage('')
+    setError('')
+    setIsSubmitting(true)
+
+    const { error: socialError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    })
+
+    setIsSubmitting(false)
+
+    if (socialError) {
+      setError(socialError.message)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-6 text-slate-900 sm:px-6">
+      <main className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_26rem]">
+        <section className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
+            Kanban workspace
+          </p>
+          <h1 className="mt-3 text-4xl font-semibold text-slate-950 sm:text-5xl">
+            Northstar Board
+          </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+            Sign in to keep your lanes, cards, classifications, and future Supabase data tied to your account.
+          </p>
+
+          <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
+            {['Private boards', 'Fast capture', 'Clean review'].map((item) => (
+              <div
+                key={item}
+                className="rounded-2xl border border-white/70 bg-white/75 px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_28px_rgba(15,23,42,0.06)]"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
+                Account
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                {authMode === 'signin' ? 'Welcome back' : 'Create account'}
+              </h2>
+            </div>
+            <span className="rounded-2xl bg-cyan-50 p-3 text-cyan-700">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+          </div>
+
+          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
+            {(['signin', 'signup'] as AuthMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setAuthMode(mode)
+                  setMessage('')
+                  setError('')
+                }}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                  authMode === mode
+                    ? 'bg-white text-slate-950 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {mode === 'signin' ? 'Sign in' : 'Sign up'}
+              </button>
+            ))}
+          </div>
+
+          <form className="space-y-3" onSubmit={handlePasswordAuth}>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Email
+              </span>
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400">
+                <Mail className="h-4 w-4" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  placeholder="you@example.com"
+                  required
+                />
+              </span>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Password
+              </span>
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400">
+                <Lock className="h-4 w-4" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  placeholder="At least 6 characters"
+                  minLength={6}
+                  required
+                />
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+              {authMode === 'signin' ? 'Sign in' : 'Create account'}
+            </button>
+          </form>
+
+          <div className="my-5 h-px bg-slate-200" />
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleMagicLink}
+              disabled={isSubmitting}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Mail className="h-4 w-4" />
+              Send magic link
+            </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('github')}
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                GitHub
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('google')}
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Google
+              </button>
+            </div>
+          </div>
+
+          {message ? (
+            <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {message}
+            </p>
+          ) : null}
+          {error ? (
+            <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              {error}
+            </p>
+          ) : null}
+        </section>
+      </main>
+    </div>
+  )
+}
 
 type CardProps = {
   card: Card
@@ -267,6 +602,11 @@ function KanbanColumn({
 }
 
 function App() {
+  const [user, setUser] = useState<User | null>(null)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
+  const [boardId, setBoardId] = useState<string | null>(null)
+  const [isBoardLoading, setIsBoardLoading] = useState(false)
+  const [boardError, setBoardError] = useState('')
   const [columns, setColumns] = useState(initialColumns)
   const [newCardTitles, setNewCardTitles] = useState<Record<string, string>>({})
   const [newCardClassifications, setNewCardClassifications] = useState<
@@ -275,6 +615,264 @@ function App() {
   const [newColumnTitle, setNewColumnTitle] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCard, setActiveCard] = useState<Card | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return
+      setUser(data.session?.user ?? null)
+      setIsAuthLoading(false)
+    })
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      setIsAuthLoading(false)
+    })
+
+    return () => {
+      isMounted = false
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadBoardData(currentUser: User) {
+      setIsBoardLoading(true)
+      setBoardError('')
+
+      const { data: existingBoard, error: boardFetchError } = await supabase
+        .from('boards')
+        .select('id, title')
+        .eq('owner_id', currentUser.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle<BoardRow>()
+
+      if (boardFetchError) {
+        throw boardFetchError
+      }
+
+      let activeBoard = existingBoard
+
+      if (!activeBoard) {
+        const { data: createdBoard, error: boardCreateError } = await supabase
+          .from('boards')
+          .insert({
+            owner_id: currentUser.id,
+            title: 'Northstar Board',
+          })
+          .select('id, title')
+          .single<BoardRow>()
+
+        if (boardCreateError) {
+          throw boardCreateError
+        }
+
+        activeBoard = createdBoard
+      }
+
+      const [{ data: columnRows, error: columnsError }, { data: cardRows, error: cardsError }] =
+        await Promise.all([
+          supabase
+            .from('columns')
+            .select('id, title, accent, position')
+            .eq('board_id', activeBoard.id)
+            .eq('owner_id', currentUser.id)
+            .order('position', { ascending: true }),
+          supabase
+            .from('cards')
+            .select('id, column_id, title, description, due, classification, position')
+            .eq('owner_id', currentUser.id)
+            .order('position', { ascending: true }),
+        ])
+
+      if (columnsError) {
+        throw columnsError
+      }
+
+      if (cardsError) {
+        throw cardsError
+      }
+
+      if (!isMounted) return
+
+      setBoardId(activeBoard.id)
+      setColumns(
+        mapBoardRowsToColumns(
+          (columnRows ?? []) as ColumnRow[],
+          (cardRows ?? []) as CardRow[],
+        ),
+      )
+      setIsBoardLoading(false)
+    }
+
+    if (!user) return
+
+    loadBoardData(user).catch((error: unknown) => {
+      if (!isMounted) return
+      setBoardError(error instanceof Error ? error.message : 'Unable to load board.')
+      setIsBoardLoading(false)
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (user) return
+
+    setBoardId(null)
+    setColumns(initialColumns)
+    setIsBoardLoading(false)
+  }, [user])
+
+  useEffect(() => {
+    if (!user || !boardId) return
+
+    const channel = supabase
+      .channel('kanban-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'columns',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload
+
+          if (eventType === 'INSERT') {
+            const col = newRow as ColumnRow
+            setColumns((prev) => {
+              if (prev.some((c) => c.id === col.id)) return prev
+              return [
+                ...prev,
+                {
+                  id: col.id,
+                  title: col.title,
+                  accent: col.accent,
+                  position: col.position,
+                  cards: [],
+                },
+              ].sort((a, b) => a.position - b.position)
+            })
+          } else if (eventType === 'UPDATE') {
+            const col = newRow as ColumnRow
+            setColumns((prev) => {
+              const updated = prev.map((c) => {
+                if (c.id === col.id) {
+                  return {
+                    ...c,
+                    title: col.title,
+                    accent: col.accent,
+                    position: col.position,
+                  }
+                }
+                return c
+              })
+              return [...updated].sort((a, b) => a.position - b.position)
+            })
+          } else if (eventType === 'DELETE') {
+            const col = oldRow as { id: string }
+            setColumns((prev) => prev.filter((c) => c.id !== col.id))
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cards',
+          filter: `owner_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload
+
+          if (eventType === 'INSERT') {
+            const card = newRow as CardRow
+            setColumns((prev) =>
+              prev.map((col) => {
+                if (col.id !== card.column_id) return col
+                if (col.cards.some((c) => c.id === card.id)) return col
+                return {
+                  ...col,
+                  cards: [
+                    ...col.cards,
+                    {
+                      id: card.id,
+                      title: card.title,
+                      description: card.description ?? undefined,
+                      due: card.due ?? undefined,
+                      classification: card.classification,
+                      position: card.position,
+                    },
+                  ].sort((a, b) => a.position - b.position),
+                }
+              }),
+            )
+          } else if (eventType === 'UPDATE') {
+            const card = newRow as CardRow
+            setColumns((prev) => {
+              const cleaned = prev.map((col) => {
+                const hasCard = col.cards.some((c) => c.id === card.id)
+                if (hasCard && col.id !== card.column_id) {
+                  return {
+                    ...col,
+                    cards: col.cards.filter((c) => c.id !== card.id),
+                  }
+                }
+                return col
+              })
+
+              return cleaned.map((col) => {
+                if (col.id !== card.column_id) return col
+
+                const exists = col.cards.some((c) => c.id === card.id)
+                const updatedCard: Card = {
+                  id: card.id,
+                  title: card.title,
+                  description: card.description ?? undefined,
+                  due: card.due ?? undefined,
+                  classification: card.classification,
+                  position: card.position,
+                }
+
+                let nextCards = []
+                if (exists) {
+                  nextCards = col.cards.map((c) => (c.id === card.id ? updatedCard : c))
+                } else {
+                  nextCards = [...col.cards, updatedCard]
+                }
+
+                return {
+                  ...col,
+                  cards: nextCards.sort((a, b) => a.position - b.position),
+                }
+              })
+            })
+          } else if (eventType === 'DELETE') {
+            const card = oldRow as { id: string }
+            setColumns((prev) =>
+              prev.map((col) => ({
+                ...col,
+                cards: col.cards.filter((c) => c.id !== card.id),
+              })),
+            )
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user, boardId])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -329,11 +927,32 @@ function App() {
     0,
   )
 
-  function addCard(columnId: string) {
+  async function addCard(columnId: string) {
+    if (!user) return
+
     const cardTitle = (newCardTitles[columnId] ?? '').trim()
     if (!cardTitle) return
 
     const classification = (newCardClassifications[columnId] ?? 'Planning').trim() || 'Planning'
+    const targetColumn = columns.find((column) => column.id === columnId)
+    const position = targetColumn?.cards.length ?? 0
+
+    const { data: createdCard, error } = await supabase
+      .from('cards')
+      .insert({
+        column_id: columnId,
+        owner_id: user.id,
+        title: cardTitle,
+        classification,
+        position,
+      })
+      .select('id, column_id, title, description, due, classification, position')
+      .single<CardRow>()
+
+    if (error) {
+      setBoardError(error.message)
+      return
+    }
 
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
@@ -343,9 +962,12 @@ function App() {
               cards: [
                 ...column.cards,
                 {
-                  id: crypto.randomUUID(),
-                  title: cardTitle,
-                  classification,
+                  id: createdCard.id,
+                  title: createdCard.title,
+                  description: createdCard.description ?? undefined,
+                  due: createdCard.due ?? undefined,
+                  classification: createdCard.classification,
+                  position: createdCard.position,
                 },
               ],
             }
@@ -359,7 +981,14 @@ function App() {
     }))
   }
 
-  function deleteCard(columnId: string, cardId: string) {
+  async function deleteCard(columnId: string, cardId: string) {
+    const { error } = await supabase.from('cards').delete().eq('id', cardId)
+
+    if (error) {
+      setBoardError(error.message)
+      return
+    }
+
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
         column.id === columnId
@@ -372,35 +1001,70 @@ function App() {
     )
   }
 
-  function addColumn(titleInput?: string) {
+  async function addColumn(titleInput?: string) {
+    if (!user || !boardId) return
+
     const title = titleInput?.trim() || newColumnTitle.trim()
+    const position = columns.length
+    const nextTitle = title || `Untitled lane ${position + 1}`
+    const accent = COLUMN_ACCENTS[position % COLUMN_ACCENTS.length]
 
-    setColumns((previousColumns) => {
-      const nextTitle = title || `Untitled lane ${previousColumns.length + 1}`
+    const { data: createdColumn, error } = await supabase
+      .from('columns')
+      .insert({
+        board_id: boardId,
+        owner_id: user.id,
+        title: nextTitle,
+        accent,
+        position,
+      })
+      .select('id, title, accent, position')
+      .single<ColumnRow>()
 
-      return [
-        ...previousColumns,
-        {
-          id: crypto.randomUUID(),
-          title: nextTitle,
-          accent: COLUMN_ACCENTS[previousColumns.length % COLUMN_ACCENTS.length],
-          cards: [],
-        },
-      ]
-    })
+    if (error) {
+      setBoardError(error.message)
+      return
+    }
+
+    setColumns((previousColumns) => [
+      ...previousColumns,
+      {
+        id: createdColumn.id,
+        title: createdColumn.title,
+        accent: createdColumn.accent,
+        position: createdColumn.position,
+        cards: [],
+      },
+    ])
 
     setNewColumnTitle('')
   }
 
-  function renameColumn(columnId: string, title: string) {
+  async function renameColumn(columnId: string, title: string) {
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
         column.id === columnId ? { ...column, title } : column,
       ),
     )
+
+    const { error } = await supabase
+      .from('columns')
+      .update({ title })
+      .eq('id', columnId)
+
+    if (error) {
+      setBoardError(error.message)
+    }
   }
 
-  function deleteColumn(columnId: string) {
+  async function deleteColumn(columnId: string) {
+    const { error } = await supabase.from('columns').delete().eq('id', columnId)
+
+    if (error) {
+      setBoardError(error.message)
+      return
+    }
+
     setColumns((previousColumns) =>
       previousColumns.filter((column) => column.id !== columnId),
     )
@@ -437,7 +1101,7 @@ function App() {
     }
   }
 
-  function handleDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     setActiveCard(null)
 
     const { active, over } = event
@@ -451,11 +1115,13 @@ function App() {
 
     if (!sourceColumnId || !targetColumnId) return
 
+    let nextColumns = columns
+
     if (sourceColumnId === targetColumnId) {
       if (activeId === overId) return
 
-      setColumns((previousColumns) =>
-        previousColumns.map((column) => {
+      nextColumns = normalizeCardPositions(
+        columns.map((column) => {
           if (column.id !== sourceColumnId) return column
 
           const oldIndex = column.cards.findIndex((card) => card.id === activeId)
@@ -473,48 +1139,70 @@ function App() {
           }
         }),
       )
-      return
-    }
+    } else {
+      const sourceColumn = columns.find((column) => column.id === sourceColumnId)
+      const targetColumn = columns.find((column) => column.id === targetColumnId)
 
-    setColumns((previousColumns) => {
-      const sourceColumn = previousColumns.find(
-        (column) => column.id === sourceColumnId,
-      )
-      const targetColumn = previousColumns.find(
-        (column) => column.id === targetColumnId,
-      )
-
-      if (!sourceColumn || !targetColumn) return previousColumns
+      if (!sourceColumn || !targetColumn) return
 
       const movingCard = sourceColumn.cards.find((card) => card.id === activeId)
-      if (!movingCard) return previousColumns
+      if (!movingCard) return
 
       const isOverCard = over.data.current?.columnId !== undefined
       const targetIndex = isOverCard
         ? targetColumn.cards.findIndex((card) => card.id === overId)
         : targetColumn.cards.length
 
-      return previousColumns.map((column) => {
-        if (column.id === sourceColumnId) {
-          return {
-            ...column,
-            cards: column.cards.filter((card) => card.id !== activeId),
+      nextColumns = normalizeCardPositions(
+        columns.map((column) => {
+          if (column.id === sourceColumnId) {
+            return {
+              ...column,
+              cards: column.cards.filter((card) => card.id !== activeId),
+            }
           }
-        }
 
-        if (column.id === targetColumnId) {
-          const nextCards = [...column.cards]
-          const insertionIndex = targetIndex === -1 ? nextCards.length : targetIndex
-          nextCards.splice(insertionIndex, 0, movingCard)
-          return {
-            ...column,
-            cards: nextCards,
+          if (column.id === targetColumnId) {
+            const nextCards = [...column.cards]
+            const insertionIndex = targetIndex === -1 ? nextCards.length : targetIndex
+            nextCards.splice(insertionIndex, 0, movingCard)
+            return {
+              ...column,
+              cards: nextCards,
+            }
           }
-        }
 
-        return column
-      })
-    })
+          return column
+        }),
+      )
+    }
+
+    setColumns(nextColumns)
+
+    try {
+      await updateCardPositions(nextColumns)
+    } catch (error) {
+      setBoardError(error instanceof Error ? error.message : 'Unable to save card order.')
+    }
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+  }
+
+  if (isAuthLoading || isBoardLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
+        <div className="inline-flex items-center gap-3 rounded-2xl border border-white/70 bg-white/85 px-5 py-4 text-sm font-semibold text-slate-700 shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+          <Loader2 className="h-4 w-4 animate-spin text-cyan-700" />
+          Loading workspace
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <AuthScreen />
   }
 
   return (
@@ -569,6 +1257,20 @@ function App() {
                 <Plus className="h-4 w-4" />
                 Add lane
               </button>
+
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <span className="max-w-[12rem] truncate text-sm font-medium text-slate-600">
+                  {user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  aria-label="Sign out"
+                  className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-rose-600"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -588,6 +1290,23 @@ function App() {
             ) : null}
           </div>
         </header>
+
+        {boardError ? (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Error:</span>
+              <span>{boardError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBoardError('')}
+              className="rounded-full p-1 text-rose-400 hover:bg-rose-100 hover:text-rose-700 transition"
+              aria-label="Dismiss error"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
 
         <main className="mt-6 flex-1">
           <DndContext
