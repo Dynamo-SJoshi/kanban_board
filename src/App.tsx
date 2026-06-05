@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, useRef, type FormEvent } from 'react'
 import {
   closestCorners,
   DndContext,
@@ -30,6 +30,9 @@ import {
   Search,
   ShieldCheck,
   X,
+  Menu,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import type { Provider, User } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
@@ -43,6 +46,7 @@ type Card = {
   due?: string
   classification: Classification
   position: number
+  progress?: string // "1/4", "1/2", "3/4", "Ready", etc.
 }
 
 type Column = {
@@ -75,6 +79,43 @@ type CardRow = {
   position: number
 }
 
+// Parses JSON-stored custom metadata (due date, description, progress) safely
+function parseCardMetadata(row: CardRow): Card {
+  let description = row.description ?? ''
+  let due = row.due ?? undefined
+  let progress = 'Yet to be started'
+
+  if (row.description && row.description.startsWith('{') && row.description.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(row.description)
+      description = parsed.description ?? ''
+      due = parsed.due ?? row.due ?? undefined
+      progress = parsed.progress ?? 'Yet to be started'
+    } catch (e) {
+      // Fallback if not valid JSON
+    }
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: description || undefined,
+    due: due || undefined,
+    classification: row.classification,
+    position: row.position,
+    progress,
+  }
+}
+
+// Packages custom metadata into a JSON string to store in description
+function serializeCardMetadata(description?: string, due?: string, progress?: string): string {
+  return JSON.stringify({
+    description: description ?? '',
+    due: due ?? '',
+    progress: progress ?? 'Yet to be started',
+  })
+}
+
 const COLUMN_ACCENTS = [
   'bg-slate-400',
   'bg-cyan-500',
@@ -102,14 +143,7 @@ function mapBoardRowsToColumns(columnRows: ColumnRow[], cardRows: CardRow[]) {
 
   cardRows.forEach((card) => {
     const cards = cardsByColumn.get(card.column_id) ?? []
-    cards.push({
-      id: card.id,
-      title: card.title,
-      description: card.description ?? undefined,
-      due: card.due ?? undefined,
-      classification: card.classification,
-      position: card.position,
-    })
+    cards.push(parseCardMetadata(card))
     cardsByColumn.set(card.column_id, cards)
   })
 
@@ -360,7 +394,7 @@ function AuthScreen() {
               <Mail className="h-4 w-4" />
               Send magic link
             </button>
-
+            
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -368,7 +402,9 @@ function AuthScreen() {
                 disabled={isSubmitting}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                <ShieldCheck className="h-4 w-4" />
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                </svg>
                 GitHub
               </button>
               <button
@@ -377,9 +413,17 @@ function AuthScreen() {
                 disabled={isSubmitting}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
               >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
                 Google
               </button>
             </div>
+
+            
           </div>
 
           {message ? (
@@ -402,19 +446,25 @@ type CardProps = {
   card: Card
   columnId: string
   onDeleteCard: (columnId: string, cardId: string) => void
+  onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => void
 }
 
-function KanbanCard({ card, columnId, onDeleteCard }: CardProps) {
+function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
       id: card.id,
       data: { columnId },
     })
 
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(card.title)
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   }
+
+  const progressOptions = ['Yet to be started', '1/4', '1/2', '3/4', 'Done']
 
   return (
     <article
@@ -447,21 +497,79 @@ function KanbanCard({ card, columnId, onDeleteCard }: CardProps) {
         </button>
       </div>
 
-      <h3 className="text-[15px] font-semibold leading-6 text-slate-900">{card.title}</h3>
+      {isEditingTitle ? (
+        <input
+          autoFocus
+          value={editingTitle}
+          onPointerDown={(e) => e.stopPropagation()}
+          onChange={(e) => setEditingTitle(e.target.value)}
+          onBlur={() => {
+            setIsEditingTitle(false)
+            if (editingTitle.trim() && editingTitle.trim() !== card.title) {
+              onUpdateCard(columnId, card.id, { title: editingTitle.trim() })
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setIsEditingTitle(false)
+              if (editingTitle.trim() && editingTitle.trim() !== card.title) {
+                onUpdateCard(columnId, card.id, { title: editingTitle.trim() })
+              }
+            }
+          }}
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-semibold text-slate-900 outline-none focus:border-cyan-400"
+        />
+      ) : (
+        <h3 
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsEditingTitle(true)
+          }}
+          className="text-[15px] font-semibold leading-6 text-slate-900 cursor-text hover:bg-slate-50 rounded px-1 -mx-1"
+        >
+          {card.title}
+        </h3>
+      )}
 
       {card.description ? (
         <p className="mt-2 text-sm leading-6 text-slate-500">{card.description}</p>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-4 text-xs font-medium text-slate-400">
-        <span className="inline-flex items-center gap-1.5">
-          <CalendarDays className="h-3.5 w-3.5" />
-          {card.due ?? 'No due date'}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Ready
-        </span>
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-400">
+        <label 
+          onPointerDown={(e) => e.stopPropagation()} 
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-slate-50 px-2 py-1 hover:bg-slate-100 transition border border-slate-200/40"
+        >
+          <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
+          <input
+            type="date"
+            value={card.due ?? ''}
+            onChange={(e) => {
+              onUpdateCard(columnId, card.id, { due: e.target.value || undefined })
+            }}
+            className="bg-transparent border-none p-0 outline-none text-xs font-medium text-slate-600 focus:ring-0 w-24 cursor-pointer"
+          />
+        </label>
+        
+        <label 
+          onPointerDown={(e) => e.stopPropagation()} 
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-slate-50 px-2 py-1 hover:bg-slate-100 transition border border-slate-200/40"
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 text-cyan-600" />
+          <select
+            value={card.progress ?? 'Yet to be started'}
+            onChange={(e) => {
+              onUpdateCard(columnId, card.id, { progress: e.target.value })
+            }}
+            className="bg-transparent border-none p-0 outline-none text-xs font-medium text-slate-600 focus:ring-0 cursor-pointer"
+          >
+            {progressOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
     </article>
   )
@@ -473,6 +581,7 @@ type ColumnProps = {
   newCardClassification: Classification
   onAddCard: (columnId: string) => void
   onDeleteCard: (columnId: string, cardId: string) => void
+  onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => void
   onDeleteColumn: (columnId: string) => void
   onRenameColumn: (columnId: string, title: string) => void
   onUpdateNewCardTitle: (columnId: string, title: string) => void
@@ -488,6 +597,7 @@ function KanbanColumn({
   newCardClassification,
   onAddCard,
   onDeleteCard,
+  onUpdateCard,
   onDeleteColumn,
   onRenameColumn,
   onUpdateNewCardTitle,
@@ -499,6 +609,8 @@ function KanbanColumn({
   })
 
   const [isEditing, setIsEditing] = useState(false)
+  const [isAddingCard, setIsAddingCard] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(column.title)
 
   return (
     <section
@@ -507,7 +619,7 @@ function KanbanColumn({
         isOver ? 'ring-2 ring-cyan-400/70' : ''
       }`}
     >
-      <div className="mb-4 rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="mb-4 rounded-[22px] bg-white px-4 py-3 border border-red-300 shadow-[0_0_6px_1px_rgba(239,68,68,0.4)] dark:border-violet-500 dark:shadow-[0_0_6px_1px_rgba(139,92,246,0.5)] transition-all duration-300">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -515,12 +627,20 @@ function KanbanColumn({
               {isEditing ? (
                 <input
                   autoFocus
-                  value={column.title}
-                  onChange={(event) => onRenameColumn(column.id, event.target.value)}
-                  onBlur={() => setIsEditing(false)}
+                  value={editingTitle}
+                  onChange={(event) => setEditingTitle(event.target.value)}
+                  onBlur={() => {
+                    setIsEditing(false)
+                    if (editingTitle.trim() && editingTitle.trim() !== column.title) {
+                      onRenameColumn(column.id, editingTitle.trim())
+                    }
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       setIsEditing(false)
+                      if (editingTitle.trim() && editingTitle.trim() !== column.title) {
+                        onRenameColumn(column.id, editingTitle.trim())
+                      }
                     }
                   }}
                   className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
@@ -528,7 +648,10 @@ function KanbanColumn({
               ) : (
                 <button
                   type="button"
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => {
+                    setEditingTitle(column.title)
+                    setIsEditing(true)
+                  }}
                   className="truncate text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-cyan-700"
                 >
                   {column.title}
@@ -561,42 +684,77 @@ function KanbanColumn({
               card={card}
               columnId={column.id}
               onDeleteCard={onDeleteCard}
+              onUpdateCard={onUpdateCard}
             />
           ))}
         </div>
       </SortableContext>
 
-      <div className="mt-3 rounded-[22px] border border-dashed border-slate-300 bg-white p-3">
-        <input
-          value={newCardTitle}
-          onChange={(event) => onUpdateNewCardTitle(column.id, event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              onAddCard(column.id)
+      {column.cards.length === 0 || isAddingCard ? (
+        <div className="mt-3 rounded-[22px] border border-dashed border-slate-300 bg-white p-3 shadow-sm transition-all">
+          <input
+            autoFocus={isAddingCard}
+            value={newCardTitle}
+            onChange={(event) => onUpdateNewCardTitle(column.id, event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                onAddCard(column.id)
+                setIsAddingCard(false)
+              }
+            }}
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+            placeholder="Add a new card title..."
+          />
+
+          <input
+            value={newCardClassification}
+            onChange={(event) =>
+              onUpdateNewCardClassification(column.id, event.target.value)
             }
-          }}
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-          placeholder="Add a new card"
-        />
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                onAddCard(column.id)
+                setIsAddingCard(false)
+              }
+            }}
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+            placeholder="Classification, e.g. Planning"
+          />
 
-        <input
-          value={newCardClassification}
-          onChange={(event) =>
-            onUpdateNewCardClassification(column.id, event.target.value)
-          }
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-          placeholder="Classification, e.g. Planning"
-        />
-
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onAddCard(column.id)
+                setIsAddingCard(false)
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+              Save card
+            </button>
+            {column.cards.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsAddingCard(false)}
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-100 p-2.5 text-slate-500 transition hover:bg-rose-100 hover:text-rose-600"
+                aria-label="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
         <button
           type="button"
-          onClick={() => onAddCard(column.id)}
-          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          onClick={() => setIsAddingCard(true)}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-[22px] border border-dashed border-slate-300 bg-slate-50/50 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
         >
           <Plus className="h-4 w-4" />
           Add card
         </button>
-      </div>
+      )}
     </section>
   )
 }
@@ -615,6 +773,19 @@ function App() {
   const [newColumnTitle, setNewColumnTitle] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCard, setActiveCard] = useState<Card | null>(null)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('kanban-dark-mode')
+    return saved === 'true'
+  })
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const [isScrollbarVisible, setIsScrollbarVisible] = useState(false)
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode)
+    localStorage.setItem('kanban-dark-mode', String(isDarkMode))
+  }, [isDarkMode])
 
   useEffect(() => {
     let isMounted = true
@@ -626,7 +797,15 @@ function App() {
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      if (!isMounted) return
+      
+      setUser((prevUser) => {
+        // Only trigger a state change if the actual user ID changed (ignores background token refreshes)
+        if (prevUser?.id === session?.user?.id) {
+          return prevUser
+        }
+        return session?.user ?? null
+      })
       setIsAuthLoading(false)
     })
 
@@ -640,7 +819,9 @@ function App() {
     let isMounted = true
 
     async function loadBoardData(currentUser: User) {
-      setIsBoardLoading(true)
+      if (columns.length === 0) {
+        setIsBoardLoading(true)
+      }
       setBoardError('')
 
       const { data: existingBoard, error: boardFetchError } = await supabase
@@ -729,6 +910,38 @@ function App() {
     setColumns(initialColumns)
     setIsBoardLoading(false)
   }, [user])
+  
+  // Silently refresh data when the user switches back to this tab
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible' && user && boardId) {
+        // Trigger a silent re-fetch without throwing up the loading screen
+        supabase
+          .from('columns')
+          .select('id, title, accent, position')
+          .eq('board_id', boardId)
+          .eq('owner_id', user.id)
+          .order('position', { ascending: true })
+          .then(({ data: columnRows }) => {
+            supabase
+              .from('cards')
+              .select('id, column_id, title, description, due, classification, position')
+              .eq('owner_id', user.id)
+              .order('position', { ascending: true })
+              .then(({ data: cardRows }) => {
+                if (columnRows && cardRows) {
+                  setColumns(
+                    mapBoardRowsToColumns(columnRows as ColumnRow[], cardRows as CardRow[])
+                  )
+                }
+              })
+          })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [user, boardId])
 
   useEffect(() => {
     if (!user || !boardId) return
@@ -804,14 +1017,7 @@ function App() {
                   ...col,
                   cards: [
                     ...col.cards,
-                    {
-                      id: card.id,
-                      title: card.title,
-                      description: card.description ?? undefined,
-                      due: card.due ?? undefined,
-                      classification: card.classification,
-                      position: card.position,
-                    },
+                    parseCardMetadata(card),
                   ].sort((a, b) => a.position - b.position),
                 }
               }),
@@ -834,14 +1040,7 @@ function App() {
                 if (col.id !== card.column_id) return col
 
                 const exists = col.cards.some((c) => c.id === card.id)
-                const updatedCard: Card = {
-                  id: card.id,
-                  title: card.title,
-                  description: card.description ?? undefined,
-                  due: card.due ?? undefined,
-                  classification: card.classification,
-                  position: card.position,
-                }
+                const updatedCard: Card = parseCardMetadata(card)
 
                 let nextCards = []
                 if (exists) {
@@ -873,6 +1072,39 @@ function App() {
       supabase.removeChannel(channel)
     }
   }, [user, boardId])
+
+  // Proximity scrollbar logic
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // If cursor is within the bottom 150px of the window
+      const isNearBottom = window.innerHeight - e.clientY < 150
+
+      if (isNearBottom) {
+        if (!isScrollbarVisible) setIsScrollbarVisible(true)
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current)
+          scrollTimeoutRef.current = null
+        }
+      } else {
+        // If not near bottom, start 5-second countdown to hide
+        if (isScrollbarVisible && !scrollTimeoutRef.current) {
+          scrollTimeoutRef.current = setTimeout(() => {
+            setIsScrollbarVisible(false)
+            scrollTimeoutRef.current = null // <-- Missing reset added here
+          }, 5000)
+        }
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+        scrollTimeoutRef.current = null // <-- Missing reset added here
+      }
+    }
+  }, [isScrollbarVisible])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -961,14 +1193,7 @@ function App() {
               ...column,
               cards: [
                 ...column.cards,
-                {
-                  id: createdCard.id,
-                  title: createdCard.title,
-                  description: createdCard.description ?? undefined,
-                  due: createdCard.due ?? undefined,
-                  classification: createdCard.classification,
-                  position: createdCard.position,
-                },
+                parseCardMetadata(createdCard),
               ],
             }
           : column,
@@ -998,6 +1223,59 @@ function App() {
             }
           : column,
       ),
+    )
+  }
+
+  async function updateCard(columnId: string, cardId: string, updates: Partial<Card>) {
+    // Locate the current card to merge updates
+    const targetColumn = columns.find((col) => col.id === columnId)
+    const currentCard = targetColumn?.cards.find((c) => c.id === cardId)
+    if (!currentCard) return
+
+    const newTitle = updates.title !== undefined ? updates.title : currentCard.title
+    const newClassification = updates.classification !== undefined ? updates.classification : currentCard.classification
+    const newDescription = updates.description !== undefined ? updates.description : currentCard.description
+    const newDue = updates.due !== undefined ? updates.due : currentCard.due
+    const newProgress = updates.progress !== undefined ? updates.progress : (currentCard.progress ?? 'Yet to be started')
+
+    // Package metadata
+    const descriptionJson = serializeCardMetadata(newDescription, newDue, newProgress)
+
+    // Update in Supabase
+    const { error } = await supabase
+      .from('cards')
+      .update({
+        title: newTitle,
+        classification: newClassification,
+        description: descriptionJson,
+        due: newDue || null,
+      })
+      .eq('id', cardId)
+
+    if (error) {
+      setBoardError(error.message)
+      return
+    }
+
+    // Update locally
+    setColumns((previousColumns) =>
+      previousColumns.map((col) => {
+        if (col.id !== columnId) return col
+        return {
+          ...col,
+          cards: col.cards.map((c) => {
+            if (c.id !== cardId) return c
+            return {
+              ...c,
+              title: newTitle,
+              classification: newClassification,
+              description: newDescription,
+              due: newDue,
+              progress: newProgress,
+            }
+          }),
+        }
+      })
     )
   }
 
@@ -1218,9 +1496,9 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-[1680px] flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="rounded-[28px] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_16px_48px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
+      <div className="mx-auto flex h-full max-w-[1680px] flex-col px-4 py-4 sm:px-6 lg:px-8">
+        <header className="relative z-40 rounded-[28px] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_16px_48px_rgba(15,23,42,0.10)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
@@ -1270,18 +1548,62 @@ function App() {
                 Add lane
               </button>
 
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <span className="max-w-[12rem] truncate text-sm font-medium text-slate-600">
-                  {user.email}
-                </span>
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={handleSignOut}
-                  aria-label="Sign out"
-                  className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-rose-600"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  aria-label="Menu"
+                  className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <Menu className="h-5 w-5" />
                 </button>
+
+                {isMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setIsMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-20">
+                      <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Account</p>
+                        <p className="max-w-[12rem] truncate text-sm font-medium text-slate-700">
+                          {user.email}
+                        </p>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDarkMode(!isDarkMode)
+                          setIsMenuOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+                          isDarkMode 
+                            ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' 
+                            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                        }`}
+                      >
+                        {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
+                        {isDarkMode ? 'Switch to Light' : 'Switch to Dark'}
+                      </button>
+
+                      
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSignOut()
+                          setIsMenuOpen(false)
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50/50 hover:text-rose-700"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1320,7 +1642,7 @@ function App() {
           </div>
         ) : null}
 
-        <main className="mt-6 flex-1">
+        <main className="mt-6 flex flex-1 flex-col min-h-0">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -1328,8 +1650,13 @@ function App() {
             onDragEnd={handleDragEnd}
           >
             {visibleColumns.length > 0 ? (
-              <div className="overflow-x-auto pb-2">
-                <div className="flex min-h-[42rem] items-start gap-4 pr-2">
+              <div 
+                className={`overflow-x-auto pb-4 floating-scrollbar ${
+                  isScrollbarVisible ? '' : 'scrollbar-hidden'
+                }`}
+                style={{ height: 'calc(100vh - 180px)' }} 
+              >
+                <div className="flex h-full items-start gap-4 pr-2">
                   {visibleColumns.map((column) => (
                     <KanbanColumn
                       key={column.id}
@@ -1338,6 +1665,7 @@ function App() {
                       newCardClassification={newCardClassifications[column.id] ?? 'Planning'}
                       onAddCard={addCard}
                       onDeleteCard={deleteCard}
+                      onUpdateCard={updateCard}
                       onDeleteColumn={deleteColumn}
                       onRenameColumn={renameColumn}
                       onUpdateNewCardTitle={updateNewCardTitle}
