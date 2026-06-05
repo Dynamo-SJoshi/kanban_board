@@ -505,12 +505,12 @@ function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className={`group cursor-grab rounded-2xl border p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] ${
+      className={`group cursor-grab rounded-2xl border-2 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] ${
         isDragging ? 'opacity-40 ring-2 ring-cyan-400' : ''
       } ${
         isOverdue
-          ? 'border-rose-400 dark:border-rose-800/80 shadow-[0_0_12px_rgba(244,63,94,0.15)] dark:shadow-[0_0_12px_rgba(244,63,94,0.08)] bg-rose-50/10'
-          : 'border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900'
+          ? 'border-red-500 dark:border-red-600 shadow-[0_0_14px_rgba(239,68,68,0.35)] dark:shadow-[0_0_14px_rgba(239,68,68,0.2)] bg-rose-50/10 dark:bg-rose-950/10'
+          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -685,17 +685,17 @@ function KanbanColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`w-[20rem] shrink-0 rounded-[28px] border p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] backdrop-blur-md transition-all duration-300 ${
+      className={`w-[20rem] shrink-0 rounded-[28px] border-2 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] backdrop-blur-md transition-all duration-300 ${
         isWipExceeded
-          ? 'bg-rose-50/70 border-rose-300/80 dark:bg-rose-950/10 dark:border-rose-900/40 shadow-[0_0_12px_rgba(244,63,94,0.15)] dark:shadow-[0_0_12px_rgba(244,63,94,0.08)]'
-          : 'bg-slate-50/70 border-slate-200/80 dark:bg-slate-900/40 dark:border-slate-800/60'
+          ? 'bg-rose-50/70 border-red-500 dark:bg-rose-950/10 dark:border-red-600 shadow-[0_0_14px_rgba(239,68,68,0.3)]'
+          : 'border-slate-200/80 bg-slate-50/70 dark:bg-slate-900/40 dark:border-slate-800/60'
       } ${
         isOver ? 'ring-2 ring-cyan-400/70' : ''
       }`}
     >
-      <div className={`mb-4 rounded-[22px] bg-white px-4 py-3 border shadow-sm transition-all duration-300 ${
+      <div className={`mb-4 rounded-[22px] bg-white px-4 py-3 border-2 shadow-sm transition-all duration-300 ${
         isWipExceeded
-          ? 'border-rose-400 dark:border-rose-700/60 shadow-[0_0_8px_rgba(244,63,94,0.3)] dark:shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+          ? 'border-red-500 dark:border-red-600 shadow-[0_0_10px_rgba(239,68,68,0.45)]'
           : 'border-slate-200 dark:border-slate-700/60'
       }`}>
         <div className="flex items-start justify-between gap-3">
