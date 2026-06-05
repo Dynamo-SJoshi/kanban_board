@@ -54,6 +54,7 @@ type Column = {
   title: string
   accent: string
   position: number
+  wipLimit?: number
   cards: Card[]
 }
 
@@ -67,6 +68,7 @@ type ColumnRow = {
   title: string
   accent: string
   position: number
+  wip_limit?: number | null
 }
 
 type CardRow = {
@@ -152,6 +154,7 @@ function mapBoardRowsToColumns(columnRows: ColumnRow[], cardRows: CardRow[]) {
     title: column.title,
     accent: column.accent,
     position: column.position,
+    wipLimit: column.wip_limit ?? undefined,
     cards: (cardsByColumn.get(column.id) ?? []).sort(
       (first, second) => first.position - second.position,
     ),
@@ -278,13 +281,13 @@ function AuthScreen() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-6 text-slate-900 sm:px-6">
       <main className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <section className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:!text-cyan-500">
             Kanban workspace
           </p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-950 sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold text-slate-950 sm:text-5xl dark:!text-white">
             Northstar Board
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600 dark:!text-slate-400">
             Sign in to keep your lanes, cards, classifications, and future Supabase data tied to your account.
           </p>
 
@@ -292,7 +295,7 @@ function AuthScreen() {
             {['Private boards', 'Fast capture', 'Clean review'].map((item) => (
               <div
                 key={item}
-                className="rounded-2xl border border-white/70 bg-white/75 px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_28px_rgba(15,23,42,0.06)]"
+                className="rounded-2xl border border-white/70 bg-white/75 px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:!border-slate-700/50 dark:!bg-slate-800/60 dark:!text-slate-200"
               >
                 {item}
               </div>
@@ -300,22 +303,22 @@ function AuthScreen() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+        <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:!border-slate-700/60 dark:!bg-slate-800/80">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:!text-cyan-500">
                 Account
               </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 dark:!text-white">
                 {authMode === 'signin' ? 'Welcome back' : 'Create account'}
               </h2>
             </div>
-            <span className="rounded-2xl bg-cyan-50 p-3 text-cyan-700">
+            <span className="rounded-2xl bg-cyan-50 p-3 text-cyan-700 dark:!bg-cyan-900/40 dark:!text-cyan-400">
               <ShieldCheck className="h-5 w-5" />
             </span>
           </div>
 
-          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
+          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 dark:!bg-slate-900/60">
             {(['signin', 'signup'] as AuthMode[]).map((mode) => (
               <button
                 key={mode}
@@ -327,8 +330,8 @@ function AuthScreen() {
                 }}
                 className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                   authMode === mode
-                    ? 'bg-white text-slate-950 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-white text-slate-950 shadow-sm dark:!bg-slate-700 dark:!text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:!text-slate-400 dark:hover:!text-slate-200'
                 }`}
               >
                 {mode === 'signin' ? 'Sign in' : 'Sign up'}
@@ -338,16 +341,16 @@ function AuthScreen() {
 
           <form className="space-y-3" onSubmit={handlePasswordAuth}>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:!text-slate-400">
                 Email
               </span>
-              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400">
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400 dark:!border-slate-700 dark:!bg-slate-900/60">
                 <Mail className="h-4 w-4" />
                 <input
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:!text-white dark:placeholder:!text-slate-500"
                   placeholder="you@example.com"
                   required
                 />
@@ -355,16 +358,16 @@ function AuthScreen() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:!text-slate-400">
                 Password
               </span>
-              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400">
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400 dark:!border-slate-700 dark:!bg-slate-900/60">
                 <Lock className="h-4 w-4" />
                 <input
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:!text-white dark:placeholder:!text-slate-500"
                   placeholder="At least 6 characters"
                   minLength={6}
                   required
@@ -375,21 +378,21 @@ function AuthScreen() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:!bg-cyan-600 dark:hover:!bg-cyan-500"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
               {authMode === 'signin' ? 'Sign in' : 'Create account'}
             </button>
           </form>
 
-          <div className="my-5 h-px bg-slate-200" />
+          <div className="my-5 h-px bg-slate-200 dark:!bg-slate-700" />
 
           <div className="space-y-2">
             <button
               type="button"
               onClick={handleMagicLink}
               disabled={isSubmitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-70 dark:!border-slate-700 dark:!bg-slate-800/60 dark:!text-slate-300 dark:hover:!border-slate-500 dark:hover:!bg-slate-700 dark:hover:!text-white"
             >
               <Mail className="h-4 w-4" />
               Send magic link
@@ -400,7 +403,7 @@ function AuthScreen() {
                 type="button"
                 onClick={() => handleSocialLogin('github')}
                 disabled={isSubmitting}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70 dark:!border-slate-700 dark:!bg-slate-800/60 dark:!text-slate-300 dark:hover:!border-slate-500 dark:hover:!bg-slate-700 dark:hover:!text-white"
               >
                 <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
@@ -411,7 +414,7 @@ function AuthScreen() {
                 type="button"
                 onClick={() => handleSocialLogin('google')}
                 disabled={isSubmitting}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-70 dark:!border-slate-700 dark:!bg-slate-800/60 dark:!text-slate-300 dark:hover:!border-slate-500 dark:hover:!bg-slate-700 dark:hover:!text-white"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -422,17 +425,15 @@ function AuthScreen() {
                 Google
               </button>
             </div>
-
-            
           </div>
 
           {message ? (
-            <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:!bg-emerald-900/40 dark:!text-emerald-400">
               {message}
             </p>
           ) : null}
           {error ? (
-            <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+            <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:!bg-rose-900/40 dark:!text-rose-400">
               {error}
             </p>
           ) : null}
@@ -447,6 +448,36 @@ type CardProps = {
   columnId: string
   onDeleteCard: (columnId: string, cardId: string) => void
   onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => void
+}
+
+function getDueDateAlert(card: Card): { label: string; className: string; isAlert: boolean } | null {
+  if (!card.due) return null
+
+  const isDone = card.progress === 'Done' || card.classification === 'Done'
+  if (isDone) return null
+
+  const dueTime = new Date(card.due + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const diffTime = dueTime.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    return {
+      label: 'Overdue',
+      className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50',
+      isAlert: true
+    }
+  } else if (diffDays === 0) {
+    return {
+      label: 'Due Today',
+      className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50',
+      isAlert: true
+    }
+  }
+  
+  return null
 }
 
 function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
@@ -465,6 +496,8 @@ function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
   }
 
   const progressOptions = ['Yet to be started', '1/4', '1/2', '3/4', 'Done']
+  const dueAlert = getDueDateAlert(card)
+  const isOverdue = dueAlert?.isAlert ?? false
 
   return (
     <article
@@ -472,17 +505,28 @@ function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className={`group cursor-grab rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] ${
+      className={`group cursor-grab rounded-2xl border p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] ${
         isDragging ? 'opacity-40 ring-2 ring-cyan-400' : ''
+      } ${
+        isOverdue
+          ? 'border-rose-400 dark:border-rose-800/80 shadow-[0_0_12px_rgba(244,63,94,0.15)] dark:shadow-[0_0_12px_rgba(244,63,94,0.08)] bg-rose-50/10'
+          : 'border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900'
       }`}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[card.classification] ?? 'bg-slate-100 text-slate-600'}`}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-          {card.classification}
-        </span>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${CLASSIFICATION_STYLES[card.classification] ?? 'bg-slate-100 text-slate-600'}`}
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+            {card.classification}
+          </span>
+          {dueAlert && (
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${dueAlert.className}`}>
+              {dueAlert.label}
+            </span>
+          )}
+        </div>
 
         <button
           type="button"
@@ -582,6 +626,7 @@ type ColumnProps = {
   onAddCard: (columnId: string) => void
   onDeleteCard: (columnId: string, cardId: string) => void
   onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => void
+  onUpdateWipLimit: (columnId: string, wipLimit: number | undefined) => void
   onDeleteColumn: (columnId: string) => void
   onRenameColumn: (columnId: string, title: string) => void
   onUpdateNewCardTitle: (columnId: string, title: string) => void
@@ -598,6 +643,7 @@ function KanbanColumn({
   onAddCard,
   onDeleteCard,
   onUpdateCard,
+  onUpdateWipLimit,
   onDeleteColumn,
   onRenameColumn,
   onUpdateNewCardTitle,
@@ -612,14 +658,46 @@ function KanbanColumn({
   const [isAddingCard, setIsAddingCard] = useState(false)
   const [editingTitle, setEditingTitle] = useState(column.title)
 
+  const [isEditingWipLimit, setIsEditingWipLimit] = useState(false)
+  const [wipInput, setWipInput] = useState(column.wipLimit !== undefined ? String(column.wipLimit) : '')
+
+  useEffect(() => {
+    setWipInput(column.wipLimit !== undefined ? String(column.wipLimit) : '')
+  }, [column.wipLimit])
+
+  function saveWipLimit() {
+    setIsEditingWipLimit(false)
+    const val = wipInput.trim()
+    if (val === '') {
+      onUpdateWipLimit(column.id, undefined)
+    } else {
+      const parsed = parseInt(val, 10)
+      if (isNaN(parsed) || parsed < 0) {
+        onUpdateWipLimit(column.id, undefined)
+      } else {
+        onUpdateWipLimit(column.id, parsed)
+      }
+    }
+  }
+
+  const isWipExceeded = column.wipLimit !== undefined && column.wipLimit > 0 && column.cards.length > column.wipLimit
+
   return (
     <section
       ref={setNodeRef}
-      className={`w-[20rem] shrink-0 rounded-[28px] border border-slate-200/80 bg-slate-50/70 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] backdrop-blur-md transition ${
+      className={`w-[20rem] shrink-0 rounded-[28px] border p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] backdrop-blur-md transition-all duration-300 ${
+        isWipExceeded
+          ? 'bg-rose-50/70 border-rose-300/80 dark:bg-rose-950/10 dark:border-rose-900/40 shadow-[0_0_12px_rgba(244,63,94,0.15)] dark:shadow-[0_0_12px_rgba(244,63,94,0.08)]'
+          : 'bg-slate-50/70 border-slate-200/80 dark:bg-slate-900/40 dark:border-slate-800/60'
+      } ${
         isOver ? 'ring-2 ring-cyan-400/70' : ''
       }`}
     >
-      <div className="mb-4 rounded-[22px] bg-white px-4 py-3 border border-red-300 shadow-[0_0_6px_1px_rgba(239,68,68,0.4)] dark:border-violet-500 dark:shadow-[0_0_6px_1px_rgba(139,92,246,0.5)] transition-all duration-300">
+      <div className={`mb-4 rounded-[22px] bg-white px-4 py-3 border shadow-sm transition-all duration-300 ${
+        isWipExceeded
+          ? 'border-rose-400 dark:border-rose-700/60 shadow-[0_0_8px_rgba(244,63,94,0.3)] dark:shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+          : 'border-slate-200 dark:border-slate-700/60'
+      }`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -652,14 +730,48 @@ function KanbanColumn({
                     setEditingTitle(column.title)
                     setIsEditing(true)
                   }}
-                  className="truncate text-left text-sm font-semibold tracking-tight text-slate-900 hover:text-cyan-700"
+                  className="truncate text-left text-sm font-semibold tracking-tight text-slate-950 dark:text-white hover:text-cyan-700 dark:hover:text-cyan-400"
                 >
                   {column.title}
                 </button>
               )}
             </div>
 
-            <p className="mt-1 text-xs text-slate-500">{column.cards.length} cards</p>
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+              <span>{column.cards.length} cards</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <span>WIP Limit:</span>
+                {isEditingWipLimit ? (
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="None"
+                    value={wipInput}
+                    onChange={(e) => setWipInput(e.target.value)}
+                    onBlur={saveWipLimit}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveWipLimit()
+                      if (e.key === 'Escape') {
+                        setIsEditingWipLimit(false)
+                        setWipInput(column.wipLimit !== undefined ? String(column.wipLimit) : '')
+                      }
+                    }}
+                    className="w-12 rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-center text-xs outline-none focus:border-cyan-400 dark:border-slate-700 dark:bg-slate-900"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingWipLimit(true)}
+                    className="hover:underline hover:text-cyan-600 font-semibold cursor-pointer text-slate-600 dark:text-slate-400"
+                    title="Click to set WIP limit"
+                  >
+                    {column.wipLimit !== undefined && column.wipLimit > 0 ? column.wipLimit : 'None'}
+                  </button>
+                )}
+              </span>
+            </div>
           </div>
 
           <button
@@ -786,9 +898,16 @@ function App() {
   const scrollContainerRef = useRef<HTMLDivElement>(null) 
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode)
-    localStorage.setItem('kanban-dark-mode', String(isDarkMode))
-  }, [isDarkMode])
+    if (user) {
+      // When logged in, strictly apply their explicit saved preference
+      document.documentElement.classList.toggle('dark', isDarkMode)
+      localStorage.setItem('kanban-dark-mode', String(isDarkMode))
+    } else {
+      // When logged out, ignore the saved setting and ask the browser for its native theme
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.classList.toggle('dark', systemPrefersDark)
+    }
+  }, [isDarkMode, user])
 
   useEffect(() => {
     let isMounted = true
@@ -862,7 +981,7 @@ function App() {
         await Promise.all([
           supabase
             .from('columns')
-            .select('id, title, accent, position')
+            .select('id, title, accent, position, wip_limit')
             .eq('board_id', activeBoard.id)
             .eq('owner_id', currentUser.id)
             .order('position', { ascending: true }),
@@ -921,7 +1040,7 @@ function App() {
         // Trigger a silent re-fetch without throwing up the loading screen
         supabase
           .from('columns')
-          .select('id, title, accent, position')
+          .select('id, title, accent, position, wip_limit')
           .eq('board_id', boardId)
           .eq('owner_id', user.id)
           .order('position', { ascending: true })
@@ -973,6 +1092,7 @@ function App() {
                   title: col.title,
                   accent: col.accent,
                   position: col.position,
+                  wipLimit: col.wip_limit ?? undefined,
                   cards: [],
                 },
               ].sort((a, b) => a.position - b.position)
@@ -987,6 +1107,7 @@ function App() {
                     title: col.title,
                     accent: col.accent,
                     position: col.position,
+                    wipLimit: col.wip_limit !== undefined ? (col.wip_limit ?? undefined) : c.wipLimit,
                   }
                 }
                 return c
@@ -1326,6 +1447,23 @@ function App() {
     )
   }
 
+  async function updateWipLimit(columnId: string, wipLimit: number | undefined) {
+    setColumns((previousColumns) =>
+      previousColumns.map((column) =>
+        column.id === columnId ? { ...column, wipLimit } : column,
+      ),
+    )
+
+    const { error } = await supabase
+      .from('columns')
+      .update({ wip_limit: wipLimit !== undefined ? wipLimit : null })
+      .eq('id', columnId)
+
+    if (error) {
+      setBoardError(error.message)
+    }
+  }
+
   async function addColumn(titleInput?: string) {
     if (!user) {
       setBoardError('User session not found. Please sign in.')
@@ -1354,7 +1492,7 @@ function App() {
         accent,
         position,
       })
-      .select('id, title, accent, position')
+      .select('id, title, accent, position, wip_limit')
       .single<ColumnRow>()
 
     if (error) {
@@ -1370,6 +1508,7 @@ function App() {
         title: createdColumn.title,
         accent: createdColumn.accent,
         position: createdColumn.position,
+        wipLimit: createdColumn.wip_limit ?? undefined,
         cards: [],
       },
     ])
@@ -1747,6 +1886,7 @@ function App() {
                       onAddCard={addCard}
                       onDeleteCard={deleteCard}
                       onUpdateCard={updateCard}
+                      onUpdateWipLimit={updateWipLimit}
                       onDeleteColumn={deleteColumn}
                       onRenameColumn={renameColumn}
                       onUpdateNewCardTitle={updateNewCardTitle}
