@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback, memo, type FormEvent } from 'react'
 import {
   closestCorners,
   DndContext,
@@ -33,6 +33,11 @@ import {
   Menu,
   Sun,
   Moon,
+  History,
+  RotateCcw,
+  Trash2,
+  Activity,
+  ArrowRight,
 } from 'lucide-react'
 import type { Provider, User } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
@@ -79,6 +84,20 @@ type CardRow = {
   due: string | null
   classification: string
   position: number
+}
+
+type ActivityLog = {
+  id: string
+  board_id: string
+  user_id: string
+  card_title: string
+  action: 'created' | 'moved' | 'deleted' | string
+  details: {
+    from_column?: string
+    to_column?: string
+    [key: string]: any
+  } | null
+  created_at: string
 }
 
 // Parses JSON-stored custom metadata (due date, description, progress) safely
@@ -480,7 +499,7 @@ function getDueDateAlert(card: Card): { label: string; className: string; isAler
   return null
 }
 
-function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
+const KanbanCard = memo(function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
       id: card.id,
@@ -617,7 +636,7 @@ function KanbanCard({ card, columnId, onDeleteCard, onUpdateCard }: CardProps) {
       </div>
     </article>
   )
-}
+})
 
 type ColumnProps = {
   column: Column
@@ -636,7 +655,7 @@ type ColumnProps = {
   ) => void
 }
 
-function KanbanColumn({
+const KanbanColumn = memo(function KanbanColumn({
   column,
   newCardTitle,
   newCardClassification,
@@ -869,7 +888,7 @@ function KanbanColumn({
       )}
     </section>
   )
-}
+})
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -892,6 +911,38 @@ function App() {
     return saved === 'true'
   })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [undoToast, setUndoToast] = useState<{
+    visible: boolean
+    message: string
+    actionType: 'delete' | 'move'
+    data: any
+  } | null>(null)
+
+  const deleteTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const moveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const columnsRef = useRef(columns)
+  useEffect(() => {
+    columnsRef.current = columns
+  }, [columns])
+
+  const newCardTitlesRef = useRef(newCardTitles)
+  useEffect(() => {
+    newCardTitlesRef.current = newCardTitles
+  }, [newCardTitles])
+
+  const newCardClassificationsRef = useRef(newCardClassifications)
+  useEffect(() => {
+    newCardClassificationsRef.current = newCardClassifications
+  }, [newCardClassifications])
+
+  const newColumnTitleRef = useRef(newColumnTitle)
+  useEffect(() => {
+    newColumnTitleRef.current = newColumnTitle
+  }, [newColumnTitle])
 
   const [isScrollbarVisible, setIsScrollbarVisible] = useState(false)
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1065,11 +1116,57 @@ function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [user, boardId])
 
+  const fetchActivityLogs = useCallback(async () => {
+    if (!boardId) return
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('board_id', boardId)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (error) {
+      console.error('Error fetching logs:', error)
+      setBoardError(`History Sync Error: ${error.message}. Please verify your database grants and RLS policies on the activity_logs table.`)
+    } else if (data) {
+      setActivityLogs(data as ActivityLog[])
+    }
+  }, [boardId])
+
+  useEffect(() => {
+    if (isHistoryOpen) {
+      fetchActivityLogs()
+    }
+  }, [isHistoryOpen, fetchActivityLogs])
+
+  useEffect(() => {
+    return () => {
+      Object.values(deleteTimeoutsRef.current).forEach(clearTimeout)
+      if (moveTimeoutRef.current) clearTimeout(moveTimeoutRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     if (!user || !boardId) return
 
     const channel = supabase
       .channel('kanban-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const newLog = payload.new as ActivityLog
+          setActivityLogs((prev) => {
+            if (prev.some((log) => log.id === newLog.id)) return prev
+            return [newLog, ...prev].slice(0, 20)
+          })
+        }
+      )
       .on(
         'postgres_changes',
         {
@@ -1327,14 +1424,14 @@ function App() {
     0,
   )
 
-  async function addCard(columnId: string) {
+  const addCard = useCallback(async (columnId: string) => {
     if (!user) return
 
-    const cardTitle = (newCardTitles[columnId] ?? '').trim()
+    const cardTitle = (newCardTitlesRef.current[columnId] ?? '').trim()
     if (!cardTitle) return
 
-    const classification = (newCardClassifications[columnId] ?? 'Planning').trim() || 'Planning'
-    const targetColumn = columns.find((column) => column.id === columnId)
+    const classification = (newCardClassificationsRef.current[columnId] ?? 'Planning').trim() || 'Planning'
+    const targetColumn = columnsRef.current.find((column) => column.id === columnId)
     const position = targetColumn?.cards.length ?? 0
 
     const { data: createdCard, error } = await supabase
@@ -1372,31 +1469,46 @@ function App() {
       ...previousTitles,
       [columnId]: '',
     }))
-  }
+  }, [user])
 
-  async function deleteCard(columnId: string, cardId: string) {
-    const { error } = await supabase.from('cards').delete().eq('id', cardId)
+  const deleteCard = useCallback(async (columnId: string, cardId: string) => {
+    const targetColumn = columnsRef.current.find((col) => col.id === columnId)
+    const cardIndex = targetColumn?.cards.findIndex((c) => c.id === cardId) ?? -1
+    const card = targetColumn?.cards[cardIndex]
 
-    if (error) {
-      setBoardError(error.message)
-      return
-    }
+    if (!card) return
 
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
         column.id === columnId
           ? {
               ...column,
-              cards: column.cards.filter((card) => card.id !== cardId),
+              cards: column.cards.filter((c) => c.id !== cardId),
             }
           : column,
       ),
     )
-  }
 
-  async function updateCard(columnId: string, cardId: string, updates: Partial<Card>) {
-    // Locate the current card to merge updates
-    const targetColumn = columns.find((col) => col.id === columnId)
+    const timeoutId = setTimeout(async () => {
+      const { error } = await supabase.from('cards').delete().eq('id', cardId)
+      if (error) {
+        setBoardError(error.message)
+      }
+      delete deleteTimeoutsRef.current[cardId]
+    }, 6000)
+
+    deleteTimeoutsRef.current[cardId] = timeoutId
+
+    setUndoToast({
+      visible: true,
+      message: `Deleted "${card.title}"`,
+      actionType: 'delete',
+      data: { card, columnId, position: cardIndex },
+    })
+  }, [])
+
+  const updateCard = useCallback(async (columnId: string, cardId: string, updates: Partial<Card>) => {
+    const targetColumn = columnsRef.current.find((col) => col.id === columnId)
     const currentCard = targetColumn?.cards.find((c) => c.id === cardId)
     if (!currentCard) return
 
@@ -1406,10 +1518,8 @@ function App() {
     const newDue = updates.due !== undefined ? updates.due : currentCard.due
     const newProgress = updates.progress !== undefined ? updates.progress : (currentCard.progress ?? 'Yet to be started')
 
-    // Package metadata
     const descriptionJson = serializeCardMetadata(newDescription, newDue, newProgress)
 
-    // Update in Supabase
     const { error } = await supabase
       .from('cards')
       .update({
@@ -1425,7 +1535,6 @@ function App() {
       return
     }
 
-    // Update locally
     setColumns((previousColumns) =>
       previousColumns.map((col) => {
         if (col.id !== columnId) return col
@@ -1445,9 +1554,9 @@ function App() {
         }
       })
     )
-  }
+  }, [])
 
-  async function updateWipLimit(columnId: string, wipLimit: number | undefined) {
+  const updateWipLimit = useCallback(async (columnId: string, wipLimit: number | undefined) => {
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
         column.id === columnId ? { ...column, wipLimit } : column,
@@ -1462,9 +1571,9 @@ function App() {
     if (error) {
       setBoardError(error.message)
     }
-  }
+  }, [])
 
-  async function addColumn(titleInput?: string) {
+  const addColumn = useCallback(async (titleInput?: string) => {
     if (!user) {
       setBoardError('User session not found. Please sign in.')
       return
@@ -1476,8 +1585,8 @@ function App() {
       return
     }
 
-    const title = titleInput?.trim() || newColumnTitle.trim()
-    const position = columns.length
+    const title = titleInput?.trim() || newColumnTitleRef.current.trim()
+    const position = columnsRef.current.length
     const nextTitle = title || `Untitled lane ${position + 1}`
     const accent = COLUMN_ACCENTS[position % COLUMN_ACCENTS.length]
 
@@ -1514,7 +1623,7 @@ function App() {
     ])
 
     setNewColumnTitle('')
-    // We use a slight delay so React has time to render the new column before we measure the width
+    
     setTimeout(() => {
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({
@@ -1523,9 +1632,9 @@ function App() {
         })
       }
     }, 100)
-  }
+  }, [user, boardId, boardError])
 
-  async function renameColumn(columnId: string, title: string) {
+  const renameColumn = useCallback(async (columnId: string, title: string) => {
     setColumns((previousColumns) =>
       previousColumns.map((column) =>
         column.id === columnId ? { ...column, title } : column,
@@ -1540,9 +1649,9 @@ function App() {
     if (error) {
       setBoardError(error.message)
     }
-  }
+  }, [])
 
-  async function deleteColumn(columnId: string) {
+  const deleteColumn = useCallback(async (columnId: string) => {
     const { error } = await supabase.from('columns').delete().eq('id', columnId)
 
     if (error) {
@@ -1553,40 +1662,40 @@ function App() {
     setColumns((previousColumns) =>
       previousColumns.filter((column) => column.id !== columnId),
     )
-  }
+  }, [])
 
-  function updateNewCardTitle(columnId: string, title: string) {
+  const updateNewCardTitle = useCallback((columnId: string, title: string) => {
     setNewCardTitles((previousTitles) => ({
       ...previousTitles,
       [columnId]: title,
     }))
-  }
+  }, [])
 
-  function updateNewCardClassification(
+  const updateNewCardClassification = useCallback((
     columnId: string,
     classification: Classification,
-  ) {
+  ) => {
     setNewCardClassifications((previousClassifications) => ({
       ...previousClassifications,
       [columnId]: classification,
     }))
-  }
+  }, [])
 
-  function handleDragStart(event: DragStartEvent) {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     const activeId = String(event.active.id)
     const sourceColumnId = event.active.data.current?.columnId as string | undefined
 
     if (!sourceColumnId) return
 
-    const sourceColumn = columns.find((column) => column.id === sourceColumnId)
+    const sourceColumn = columnsRef.current.find((column) => column.id === sourceColumnId)
     const card = sourceColumn?.cards.find((item) => item.id === activeId)
 
     if (card) {
       setActiveCard(card)
     }
-  }
+  }, [])
 
-  async function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveCard(null)
 
     const { active, over } = event
@@ -1600,13 +1709,14 @@ function App() {
 
     if (!sourceColumnId || !targetColumnId) return
 
-    let nextColumns = columns
+    if (sourceColumnId === targetColumnId && activeId === overId) return
+
+    const prevColumns = columnsRef.current
+    let nextColumns = columnsRef.current
 
     if (sourceColumnId === targetColumnId) {
-      if (activeId === overId) return
-
       nextColumns = normalizeCardPositions(
-        columns.map((column) => {
+        columnsRef.current.map((column) => {
           if (column.id !== sourceColumnId) return column
 
           const oldIndex = column.cards.findIndex((card) => card.id === activeId)
@@ -1625,8 +1735,8 @@ function App() {
         }),
       )
     } else {
-      const sourceColumn = columns.find((column) => column.id === sourceColumnId)
-      const targetColumn = columns.find((column) => column.id === targetColumnId)
+      const sourceColumn = columnsRef.current.find((column) => column.id === sourceColumnId)
+      const targetColumn = columnsRef.current.find((column) => column.id === targetColumnId)
 
       if (!sourceColumn || !targetColumn) return
 
@@ -1639,7 +1749,7 @@ function App() {
         : targetColumn.cards.length
 
       nextColumns = normalizeCardPositions(
-        columns.map((column) => {
+        columnsRef.current.map((column) => {
           if (column.id === sourceColumnId) {
             return {
               ...column,
@@ -1666,10 +1776,70 @@ function App() {
 
     try {
       await updateCardPositions(nextColumns)
+
+      setUndoToast({
+        visible: true,
+        message: 'Card moved.',
+        actionType: 'move',
+        data: { prevColumns },
+      })
+
+      if (moveTimeoutRef.current) {
+        clearTimeout(moveTimeoutRef.current)
+      }
+      moveTimeoutRef.current = setTimeout(() => {
+        setUndoToast((curr) => (curr?.actionType === 'move' ? null : curr))
+      }, 6000)
+
     } catch (error) {
       setBoardError(error instanceof Error ? error.message : 'Unable to save card order.')
     }
-  }
+  }, [])
+
+  const handleUndo = useCallback(async () => {
+    if (!undoToast) return
+
+    const { actionType, data } = undoToast
+
+    if (actionType === 'delete') {
+      const { card, columnId, position } = data
+      
+      const timeoutId = deleteTimeoutsRef.current[card.id]
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        delete deleteTimeoutsRef.current[card.id]
+      }
+
+      setColumns((previousColumns) =>
+        previousColumns.map((col) => {
+          if (col.id !== columnId) return col
+          const nextCards = [...col.cards]
+          nextCards.splice(position, 0, card)
+          return {
+            ...col,
+            cards: nextCards,
+          }
+        }),
+      )
+    } else if (actionType === 'move') {
+      const { prevColumns } = data
+      
+      if (moveTimeoutRef.current) {
+        clearTimeout(moveTimeoutRef.current)
+        moveTimeoutRef.current = null
+      }
+
+      setColumns(prevColumns)
+
+      try {
+        await updateCardPositions(prevColumns)
+      } catch (error) {
+        setBoardError(error instanceof Error ? error.message : 'Unable to revert card order.')
+      }
+    }
+
+    setUndoToast(null)
+  }, [undoToast])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -1766,6 +1936,15 @@ function App() {
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add lane
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(true)}
+                className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800 dark:border-slate-800 dark:bg-slate-900"
+                title="View Board Activity History"
+              >
+                <History className="h-5 w-5" />
               </button>
 
               <div className="relative">
@@ -1963,6 +2142,117 @@ function App() {
           </DndContext>
         </main>
       </div>
+
+      {/* Sliding History Sidebar Backdrop */}
+      {isHistoryOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px] dark:bg-black/30"
+          onClick={() => setIsHistoryOpen(false)}
+        />
+      )}
+
+      {/* Sliding History Sidebar */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 w-96 transform border-l border-slate-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl transition-transform duration-300 ease-in-out dark:border-slate-800/60 dark:bg-slate-950/95 ${
+          isHistoryOpen ? 'translate-x-0' : 'translate-x-full'
+        } flex flex-col`}
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800/60">
+          <div className="flex items-center gap-2.5">
+            <History className="h-5 w-5 text-cyan-600 dark:text-cyan-500" />
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Activity History</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(false)}
+            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+          {activityLogs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Activity className="h-8 w-8 text-slate-300 dark:text-slate-700 animate-pulse mb-3" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">No activity logged yet.</p>
+            </div>
+          ) : (
+            activityLogs.map((log) => {
+              const date = new Date(log.created_at)
+              const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              const dateString = date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+              
+              let actionIcon = <Activity className="h-4 w-4 text-slate-500" />
+              let actionColor = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+              let actionText = ''
+
+              if (log.action === 'created') {
+                actionIcon = <Plus className="h-3.5 w-3.5" />
+                actionColor = 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                actionText = 'created card'
+              } else if (log.action === 'moved') {
+                actionIcon = <ArrowRight className="h-3.5 w-3.5" />
+                actionColor = 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-400'
+                actionText = `moved card`
+              } else if (log.action === 'deleted') {
+                actionIcon = <Trash2 className="h-3.5 w-3.5" />
+                actionColor = 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
+                actionText = 'deleted card'
+              }
+
+              return (
+                <div key={log.id} className="group flex gap-3 rounded-xl border border-transparent p-2.5 transition hover:bg-slate-50 dark:hover:bg-slate-900/60">
+                  <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${actionColor}`}>
+                    {actionIcon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                      {log.card_title}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{actionText}</span>
+                      {log.action === 'moved' && log.details && (
+                        <span>
+                          {' '}from <span className="italic font-medium">{log.details.from_column}</span> to <span className="italic font-medium">{log.details.to_column}</span>
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {dateString} at {timeString}
+                    </p>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Glassmorphic Undo Toast */}
+      {undoToast && undoToast.visible && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-bounce-short">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/40 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-950/90">
+            <RotateCcw className="h-4 w-4 text-cyan-400" />
+            <span>{undoToast.message}</span>
+            <button
+              type="button"
+              onClick={handleUndo}
+              className="ml-2 rounded-lg bg-cyan-600 px-3 py-1 text-xs font-bold text-white transition hover:bg-cyan-500 active:scale-95"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={() => setUndoToast(null)}
+              className="rounded-full p-1 text-slate-400 hover:text-white transition"
+              aria-label="Dismiss toast"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
