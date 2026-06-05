@@ -19,24 +19,19 @@
 }
 
 .dark {
-  --bg-app: radial-gradient(circle at top, rgba(14, 165, 233, 0.15), transparent 40%), linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  /* Richer, deeper background */
+  --bg-app: radial-gradient(circle at top, rgba(14, 165, 233, 0.08), transparent 50%), linear-gradient(180deg, #020617 0%, #0f172a 100%);
   --bg-card: #1e293b;
-  --bg-column: rgba(15, 23, 42, 0.6);
-  --border-primary: rgba(51, 65, 85, 0.8);
-  --text-main: #f1f5f9;
+  --bg-column: rgba(30, 41, 59, 0.45);
+  --border-primary: rgba(71, 85, 105, 0.4);
+  --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --text-title: #ffffff;
-  --bg-header: rgba(30, 41, 59, 0.8);
-  --border-white-translucent: rgba(51, 65, 85, 0.5);
+  --bg-header: rgba(15, 23, 42, 0.75);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
@@ -50,8 +45,10 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Override standard components dynamically to support dark mode theme values */
-.min-h-screen {
+/* =========================================
+   DARK MODE OVERRIDES
+   ========================================= */
+.min-h-screen, .h-screen {
   background: var(--bg-app) !important;
   color: var(--text-main) !important;
 }
@@ -66,55 +63,42 @@ h1, h2, h3, .text-slate-950, .text-slate-900 {
   color: var(--text-title) !important;
 }
 
-p, .text-slate-500, .text-slate-600 {
+p, .text-slate-600, .text-slate-500, .text-slate-400 {
   color: var(--text-muted) !important;
 }
 
-/* Kanban Board Layouts */
-section.shrink-0 {
+/* Catch all translucent background variations so they don't look muddy */
+.dark .bg-white, .dark .bg-white\/85, .dark .bg-white\/80, .dark .bg-white\/75, .dark .bg-white\/70,
+.dark .bg-slate-50, .dark .bg-slate-50\/90, .dark .bg-slate-50\/70, .dark .bg-slate-50\/50, .dark .bg-slate-100 {
+  background-color: var(--bg-card) !important;
+}
+
+/* Make columns distinctly glassy */
+.dark section.shrink-0 {
   background-color: var(--bg-column) !important;
+}
+
+/* Crisp unified borders */
+.dark .border-slate-200, .dark .border-slate-200\/80, .dark .border-slate-200\/40, 
+.dark .border-slate-300, .dark .border-dashed, .dark .border-white\/70 {
   border-color: var(--border-primary) !important;
 }
 
-article.group {
-  background-color: var(--bg-card) !important;
+/* Clean, readable inputs and selects */
+.dark input, .dark select, .dark textarea {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  color: var(--text-title) !important;
   border-color: var(--border-primary) !important;
-}
-
-/* Form controls and panels */
-input, select, textarea {
-  background-color: var(--bg-card) !important;
-  color: var(--text-main) !important;
-  border-color: var(--border-primary) !important;
-}
-
-.border-slate-200, .border-white\/70, .border-dashed {
-  border-color: var(--border-primary) !important;
-}
-
-.bg-white, .bg-white\/85, .bg-white\/80, .bg-white\/75 {
-  background-color: var(--bg-card) !important;
-}
-
-.bg-slate-50, .bg-slate-100 {
-  background-color: var(--bg-column) !important;
 }
 
 .shadow-lg, .shadow-xl, .shadow-sm {
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3) !important;
 }
 
-/* Classification Tags Custom Dark Settings */
-.bg-slate-100.text-slate-600 {
-  background-color: rgba(148, 163, 184, 0.15) !important;
-  color: #94a3b8 !important;
-}
-
 ::selection {
   background: rgba(34, 211, 238, 0.25);
   color: #0f172a;
 }
-
 .dark ::selection {
   background: rgba(34, 211, 238, 0.45);
   color: #f8fafc;
@@ -157,4 +141,8 @@ input, select, textarea {
 }
 .dark .scrollbar-hidden::-webkit-scrollbar-thumb {
   background-color: transparent;
+}
+/* Hide the intersecting corner block */
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

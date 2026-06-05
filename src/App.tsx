@@ -615,7 +615,7 @@ function KanbanColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`w-[20rem] shrink-0 rounded-[28px] border border-slate-200/80 bg-slate-50/90 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] transition ${
+      className={`w-[20rem] shrink-0 rounded-[28px] border border-slate-200/80 bg-slate-50/70 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] backdrop-blur-md transition ${
         isOver ? 'ring-2 ring-cyan-400/70' : ''
       }`}
     >
@@ -772,6 +772,8 @@ function App() {
   >({})
   const [newColumnTitle, setNewColumnTitle] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchFilter, setSearchFilter] = useState<'all' | 'title' | 'classification' | 'lane'>('all')
+  const [sortByDueDate, setSortByDueDate] = useState(false)
   const [activeCard, setActiveCard] = useState<Card | null>(null)
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('kanban-dark-mode')
@@ -781,6 +783,7 @@ function App() {
 
   const [isScrollbarVisible, setIsScrollbarVisible] = useState(false)
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null) 
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode)
@@ -1122,37 +1125,81 @@ function App() {
   )
 
   const visibleColumns = useMemo(() => {
+    let filtered = columns
+
     const query = searchQuery.trim().toLowerCase()
 
-    if (!query) return columns
+    // 1. Handle Filtering
+    if (query) {
+      filtered = columns
+        .map((column) => {
+          const laneMatches = (searchFilter === 'all' || searchFilter === 'lane') && column.title.toLowerCase().includes(query)
 
-    return columns
-      .map((column) => {
-        const laneMatches = column.title.toLowerCase().includes(query)
-        if (laneMatches) return column
+          // If searching exclusively for lanes, return the whole lane if it matches, else hide it
+          if (searchFilter === 'lane') {
+             if (laneMatches) return column
+             return null
+          }
 
-        const filteredCards = column.cards.filter((card) => {
-          const haystack = [
-            card.title,
-            card.description ?? '',
-            card.due ?? '',
-            card.classification,
-          ]
-            .join(' ')
-            .toLowerCase()
+          // Otherwise, filter the cards based on the selected criteria
+          const filteredCards = column.cards.filter((card) => {
+            if (searchFilter === 'all') {
+              const titleMatch = card.title.toLowerCase().includes(query)
+              const descMatch = (card.description ?? '').toLowerCase().includes(query)
+              const dueMatch = (card.due ?? '').toLowerCase().includes(query)
+              const classMatch = card.classification.toLowerCase().startsWith(query)
+              return titleMatch || descMatch || dueMatch || classMatch
+            }
+            if (searchFilter === 'title') {
+              return card.title.toLowerCase().includes(query)
+            }
+            if (searchFilter === 'classification') {
+              return card.classification.toLowerCase().startsWith(query)
+            }
+            return false
+          })
 
-          return haystack.includes(query)
+          // If the lane name matched a global search, keep all its cards
+          if (laneMatches) return column
+          
+          if (filteredCards.length === 0) return null
+
+          return {
+            ...column,
+            cards: filteredCards,
+          }
         })
+        .filter((column): column is Column => column !== null)
+    }
 
-        if (filteredCards.length === 0) return null
-
-        return {
-          ...column,
-          cards: filteredCards,
-        }
+    // 2. Handle Sorting
+    if (sortByDueDate) {
+      // First, sort the cards within each individual lane
+      filtered = filtered.map((column) => {
+        const sortedCards = [...column.cards].sort((a, b) => {
+          if (!a.due && !b.due) return 0
+          if (!a.due) return 1 // Cards without dates sink to the bottom
+          if (!b.due) return -1
+          return new Date(a.due).getTime() - new Date(b.due).getTime()
+        })
+        return { ...column, cards: sortedCards }
       })
-      .filter((column): column is Column => column !== null)
-  }, [columns, searchQuery])
+
+      // Second, sort the lanes from left-to-right based on their earliest card
+      filtered = [...filtered].sort((colA, colB) => {
+        // Because cards are already sorted, the 0th index is guaranteed to be the earliest
+        const earliestA = colA.cards[0]?.due
+        const earliestB = colB.cards[0]?.due
+        
+        if (!earliestA && !earliestB) return 0
+        if (!earliestA) return 1 // Lanes without dates shift to the far right
+        if (!earliestB) return -1
+        return new Date(earliestA).getTime() - new Date(earliestB).getTime()
+      })
+    }
+
+    return filtered
+  }, [columns, searchQuery, searchFilter, sortByDueDate])
 
   const visibleCardCount = visibleColumns.reduce(
     (sum, column) => sum + column.cards.length,
@@ -1328,6 +1375,15 @@ function App() {
     ])
 
     setNewColumnTitle('')
+    // We use a slight delay so React has time to render the new column before we measure the width
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({
+          left: scrollContainerRef.current.scrollWidth,
+          behavior: 'smooth',
+        })
+      }
+    }, 100)
   }
 
   async function renameColumn(columnId: string, title: string) {
@@ -1519,32 +1575,57 @@ function App() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-400 shadow-sm sm:w-[22rem]">
-                <Search className="h-4 w-4" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search cards, classifications, or lane names"
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Clear search"
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400 shadow-sm sm:w-[30rem] focus-within:border-cyan-400 focus-within:ring-1 focus-within:ring-cyan-400 transition-all">
+                  <Search className="h-4 w-4 ml-1 shrink-0" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search board..."
+                    className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 shrink-0"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  <div className="h-5 w-px bg-slate-200 mx-1 shrink-0" />
+                  <select
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value as any)}
+                    className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer border-none p-0 focus:ring-0 shrink-0"
                   >
-                    <X className="h-4 w-4" />
-                  </button>
-                ) : null}
-              </label>
+                    <option value="all">All fields</option>
+                    <option value="title">Card name</option>
+                    <option value="classification">Classification</option>
+                    <option value="lane">Lane name</option>
+                  </select>
+                </label>
+                
+                <label className="flex items-center gap-2 ml-2 cursor-pointer group w-fit">
+                  <input
+                    type="checkbox"
+                    checked={sortByDueDate}
+                    onChange={(e) => setSortByDueDate(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 accent-cyan-600"
+                  />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-slate-700 transition">
+                    Sort by earliest completion time
+                  </span>
+                </label>
+              </div>
 
               <button
                 type="button"
                 onClick={() => addColumn()}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex h-fit items-center justify-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 Add lane
               </button>
 
@@ -1651,10 +1732,10 @@ function App() {
           >
             {visibleColumns.length > 0 ? (
               <div 
-                className={`overflow-x-auto pb-4 floating-scrollbar ${
+                ref={scrollContainerRef}
+                className={`flex-1 overflow-x-auto overflow-y-auto pb-4 floating-scrollbar ${
                   isScrollbarVisible ? '' : 'scrollbar-hidden'
                 }`}
-                style={{ height: 'calc(100vh - 180px)' }} 
               >
                 <div className="flex h-full items-start gap-4 pr-2">
                   {visibleColumns.map((column) => (
@@ -1673,7 +1754,7 @@ function App() {
                     />
                   ))}
 
-                  <section className="w-[20rem] shrink-0 rounded-[28px] border border-dashed border-cyan-200 bg-white/80 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)] backdrop-blur">
+                  <section className="w-[20rem] shrink-0 rounded-[28px] border border-dashed border-cyan-200 bg-white/80 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)] backdrop-blur-md">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
                       New lane
                     </p>
