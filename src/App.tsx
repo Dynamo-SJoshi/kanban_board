@@ -29,7 +29,6 @@ import {
   Mail,
   Plus,
   Search,
-  ShieldCheck,
   X,
   Sun,
   Moon,
@@ -40,6 +39,7 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  LockKeyhole,
 } from 'lucide-react'
 import type { Provider, User } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
@@ -359,7 +359,7 @@ function AuthScreen() {
               </h2>
             </div>
             <span className="rounded-2xl bg-cyan-50 p-3 text-cyan-700 dark:!bg-cyan-900/40 dark:!text-cyan-400">
-              <ShieldCheck className="h-5 w-5" />
+              <LockKeyhole className="h-5 w-5" />
             </span>
           </div>
 
