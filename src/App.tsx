@@ -38,6 +38,8 @@ import {
   Trash2,
   Activity,
   ArrowRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import type { Provider, User } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
@@ -214,6 +216,7 @@ function AuthScreen() {
   const [authMode, setAuthMode] = useState<AuthMode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -380,10 +383,10 @@ function AuthScreen() {
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:!text-slate-400">
                 Password
               </span>
-              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400 dark:!border-slate-700 dark:!bg-slate-900/60">
-                <Lock className="h-4 w-4" />
+              <span className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400 dark:!border-slate-700 dark:!bg-slate-900/60 focus-within:border-cyan-400 focus-within:ring-1 focus-within:ring-cyan-400 transition-all">
+                <Lock className="h-4 w-4 shrink-0" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:!text-white dark:placeholder:!text-slate-500"
@@ -391,6 +394,19 @@ function AuthScreen() {
                   minLength={6}
                   required
                 />
+                <button
+                  type="button"
+                  onPointerDown={(e) => {
+                    e.preventDefault() // Keeps the cursor inside the input field while clicking
+                    setShowPassword(true)
+                  }}
+                  onPointerUp={() => setShowPassword(false)}
+                  onPointerLeave={() => setShowPassword(false)}
+                  className="rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 shrink-0 cursor-pointer dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </span>
             </label>
 
@@ -469,11 +485,19 @@ type CardProps = {
   onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => void
 }
 
-function getDueDateAlert(card: Card): { label: string; className: string; isAlert: boolean } | null {
+function getDueDateAlert(card: Card): { label: string; className: string; isAlert: boolean; isSuccess?: boolean } | null {
   if (!card.due) return null
 
   const isDone = card.progress === 'Done' || card.classification === 'Done'
-  if (isDone) return null
+  
+  if (isDone) {
+    return {
+      label: 'Completed',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50',
+      isAlert: false,
+      isSuccess: true
+    }
+  }
 
   const dueTime = new Date(card.due + 'T00:00:00')
   const today = new Date()
@@ -486,13 +510,15 @@ function getDueDateAlert(card: Card): { label: string; className: string; isAler
     return {
       label: 'Overdue',
       className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50',
-      isAlert: true
+      isAlert: true,
+      isSuccess: false
     }
   } else if (diffDays === 0) {
     return {
       label: 'Due Today',
       className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50',
-      isAlert: true
+      isAlert: true,
+      isSuccess: false
     }
   }
   
@@ -517,6 +543,7 @@ const KanbanCard = memo(function KanbanCard({ card, columnId, onDeleteCard, onUp
   const progressOptions = ['Yet to be started', '1/4', '1/2', '3/4', 'Done']
   const dueAlert = getDueDateAlert(card)
   const isOverdue = dueAlert?.isAlert ?? false
+  const isSuccess = dueAlert?.isSuccess ?? false
 
   return (
     <article
@@ -529,6 +556,8 @@ const KanbanCard = memo(function KanbanCard({ card, columnId, onDeleteCard, onUp
       } ${
         isOverdue
           ? 'border-red-500 dark:border-red-600 shadow-[0_0_14px_rgba(239,68,68,0.35)] dark:shadow-[0_0_14px_rgba(239,68,68,0.2)] bg-rose-50/10 dark:bg-rose-950/10'
+          : isSuccess
+          ? 'border-emerald-400 dark:border-emerald-500 shadow-[0_0_14px_rgba(16,185,129,0.25)] dark:shadow-[0_0_14px_rgba(16,185,129,0.15)] bg-emerald-50/30 dark:bg-emerald-950/20'
           : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
       }`}
     >
