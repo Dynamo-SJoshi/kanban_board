@@ -3,7 +3,8 @@ import {
   closestCorners,
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   type DragEndEvent,
   type DragStartEvent,
   useDroppable,
@@ -30,7 +31,6 @@ import {
   Search,
   ShieldCheck,
   X,
-  Menu,
   Sun,
   Moon,
   History,
@@ -302,26 +302,49 @@ function AuthScreen() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-6 text-slate-900 sm:px-6">
       <main className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_26rem]">
-        <section className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:!text-cyan-500">
-            Kanban workspace
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold text-slate-950 sm:text-5xl dark:!text-white">
-            Northstar Board
-          </h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600 dark:!text-slate-400">
-            Sign in to keep your lanes, cards, classifications, and future Supabase data tied to your account.
-          </p>
+        <section className="max-w-2xl relative">
+          {/* Decorative background blur */}
+          <div className="absolute -left-10 top-10 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl dark:bg-cyan-900/40" />
+          <div className="absolute -right-10 top-40 h-72 w-72 rounded-full bg-violet-400/20 blur-3xl dark:bg-violet-900/40" />
+          
+          <div className="relative z-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:!text-cyan-500">
+              Kanban workspace
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold text-slate-950 sm:text-5xl dark:!text-white">
+              Northstar Board
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-slate-600 dark:!text-slate-400">
+              Sign in to keep your lanes, cards, classifications, and future Supabase data tied to your account.
+            </p>
 
-          <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
-            {['Private boards', 'Fast capture', 'Clean review'].map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-white/70 bg-white/75 px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:!border-slate-700/50 dark:!bg-slate-800/60 dark:!text-slate-200"
-              >
-                {item}
+            {/* Interactive Visual Representation */}
+            <div className="mt-10 relative h-64 w-full max-w-md perspective-1000">
+              {/* Floating Card 1 */}
+              <div className="absolute left-0 top-0 w-64 rounded-2xl border border-white/60 bg-white/40 p-4 shadow-xl backdrop-blur-md transition-transform duration-500 hover:-translate-y-2 hover:rotate-2 dark:border-slate-700/50 dark:bg-slate-800/40 cursor-pointer">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-400">DESIGN</span>
+                </div>
+                <div className="h-4 w-3/4 rounded bg-slate-200/80 dark:bg-slate-700/80" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-slate-100/80 dark:bg-slate-800/80" />
               </div>
-            ))}
+
+              {/* Floating Card 2 */}
+              <div className="absolute left-12 top-20 w-64 rounded-2xl border border-white/60 bg-white/60 p-4 shadow-2xl backdrop-blur-xl transition-transform duration-500 hover:-translate-y-2 hover:-rotate-2 dark:border-slate-700/70 dark:bg-slate-800/60 cursor-pointer z-10">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-900/50 dark:text-violet-400">BUILD</span>
+                </div>
+                <div className="h-4 w-full rounded bg-slate-300 dark:bg-slate-600" />
+                <div className="mt-2 h-3 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex -space-x-2">
+                    <div className="h-6 w-6 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-800" />
+                    <div className="h-6 w-6 rounded-full border-2 border-white bg-amber-400 dark:border-slate-800" />
+                  </div>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -583,7 +606,7 @@ const KanbanCard = memo(function KanbanCard({ card, columnId, onDeleteCard, onUp
             event.stopPropagation()
             onDeleteCard(columnId, card.id)
           }}
-          className="rounded-full p-1.5 text-slate-300 opacity-0 transition hover:bg-slate-100 hover:text-rose-500 group-hover:opacity-100"
+          className="rounded-full p-1.5 transition md:opacity-0 md:group-hover:opacity-100 opacity-100 text-slate-400 hover:bg-slate-100 hover:text-rose-500"
         >
           <X className="h-4 w-4" />
         </button>
@@ -630,7 +653,7 @@ const KanbanCard = memo(function KanbanCard({ card, columnId, onDeleteCard, onUp
       <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-400">
         <label 
           onPointerDown={(e) => e.stopPropagation()} 
-          className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-slate-50 px-2 py-1 hover:bg-slate-100 transition border border-slate-200/40"
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-slate-50 px-3 py-2 hover:bg-slate-100 transition border border-slate-200/40"
         >
           <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
           <input
@@ -645,7 +668,7 @@ const KanbanCard = memo(function KanbanCard({ card, columnId, onDeleteCard, onUp
         
         <label 
           onPointerDown={(e) => e.stopPropagation()} 
-          className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-slate-50 px-2 py-1 hover:bg-slate-100 transition border border-slate-200/40"
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-slate-50 px-3 py-2 hover:bg-slate-100 transition border border-slate-200/40"
         >
           <CheckCircle2 className="h-3.5 w-3.5 text-cyan-600" />
           <select
@@ -812,8 +835,8 @@ const KanbanColumn = memo(function KanbanColumn({
                   <button
                     type="button"
                     onClick={() => setIsEditingWipLimit(true)}
-                    className="hover:underline hover:text-cyan-600 font-semibold cursor-pointer text-slate-600 dark:text-slate-400"
-                    title="Click to set WIP limit"
+                    className="font-semibold text-slate-600 dark:text-slate-400 underline decoration-dashed decoration-slate-300 underline-offset-4 hover:decoration-cyan-400 transition-colors"
+                    title="Tap to set WIP limit"
                   >
                     {column.wipLimit !== undefined && column.wipLimit > 0 ? column.wipLimit : 'None'}
                   </button>
@@ -1357,19 +1380,37 @@ function App() {
   }, [isScrollbarVisible])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 5,
       },
     }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
   )
-
+  const [isShowingStats, setIsShowingStats] = useState(false)
   const totalCards = columns.reduce((sum, column) => sum + column.cards.length, 0)
   const doneCards = columns.reduce(
     (sum, column) =>
-      sum + column.cards.filter((card) => card.classification === 'Done').length,
+      sum + column.cards.filter((card) => card.classification === 'Done' || card.progress === 'Done').length,
     0,
   )
+  
+  const overdueCards = columns.reduce((sum, column) => {
+    return sum + column.cards.filter(card => {
+      if (!card.due) return false
+      const isDone = card.progress === 'Done' || card.classification === 'Done'
+      if (isDone) return false
+      
+      const dueTime = new Date(card.due + 'T00:00:00').getTime()
+      const today = new Date().setHours(0, 0, 0, 0)
+      return dueTime < today
+    }).length
+  }, 0)
 
   const visibleColumns = useMemo(() => {
     let filtered = columns
@@ -1448,10 +1489,7 @@ function App() {
     return filtered
   }, [columns, searchQuery, searchFilter, sortByDueDate])
 
-  const visibleCardCount = visibleColumns.reduce(
-    (sum, column) => sum + column.cards.length,
-    0,
-  )
+
 
   const addCard = useCallback(async (columnId: string) => {
     if (!user) return
@@ -1892,98 +1930,143 @@ function App() {
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
       <div className="mx-auto flex h-full max-w-[1680px] flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="relative z-40 rounded-[28px] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_16px_48px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+        <header className="relative z-40 rounded-[28px] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_16px_48px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-800/80">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
-                Kanban workspace
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
-                  Northstar Board
-                </h1>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  {totalCards} cards total
-                </span>
+            {/* Left Side: Interactive Brand & Workspace */}
+            <button
+              type="button"
+              onClick={() => setIsShowingStats((prev) => !prev)}
+              className="group flex cursor-pointer items-center gap-4 rounded-2xl p-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/30 focus:outline-none"
+              title="Click to toggle board statistics"
+            >
+              {/* Custom Image Logo Block */}
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-inner transition-transform group-hover:scale-105 group-active:scale-95">
+                <img 
+                  src="/favicon.png" 
+                  alt="Northstar Logo" 
+                  className="h-full w-full object-cover" 
+                />
               </div>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                A clean, professional kanban board with drag-and-drop, inline lane editing, and card
-                classification.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-400 shadow-sm sm:w-[30rem] focus-within:border-cyan-400 focus-within:ring-1 focus-within:ring-cyan-400 transition-all">
-                  <Search className="h-4 w-4 ml-1 shrink-0" />
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search board..."
-                    className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 shrink-0"
-                      aria-label="Clear search"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+              
+              <div className="min-w-[14rem]">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500 transition-colors group-hover:text-cyan-600 dark:text-slate-400 dark:group-hover:text-cyan-400">
+                  Kanban Workspace
+                  <span className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <RotateCcw className="h-3 w-3" />
+                  </span>
+                </p>
+                
+                <div className="mt-0.5 flex h-7 items-center">
+                  {isShowingStats ? (
+                    // The "Stats" View
+                    <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                      <span className="flex items-center gap-1.5 text-[15px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        {doneCards} Completed
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="flex items-center gap-1.5 text-[15px] font-bold text-rose-600 dark:text-rose-400">
+                        <CalendarDays className="h-4 w-4" />
+                        {overdueCards} Overdue
+                      </span>
+                    </div>
+                  ) : (
+                    // The "Title" View
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <h1 className="text-xl font-bold tracking-tight text-slate-950 transition group-hover:text-cyan-600 dark:text-white dark:group-hover:text-cyan-400">
+                        Northstar Board
+                      </h1>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        {totalCards}
+                      </span>
+                    </div>
                   )}
-                  <div className="h-5 w-px bg-slate-200 mx-1 shrink-0" />
+                </div>
+              </div>
+            </button>
+
+            {/* Right Side: Tools & Profile */}
+            <div className="flex flex-col gap-3 sm:flex-row items-center">
+              <div className="flex flex-col gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                {/* Search and Filter Row */}
+                <div className="flex flex-1 items-center rounded-2xl border border-slate-200 bg-white shadow-sm focus-within:border-cyan-400 focus-within:ring-1 focus-within:ring-cyan-400 transition-all dark:border-slate-700 dark:bg-slate-900/50">
+                  <label className="flex flex-1 items-center gap-2 px-3 py-2.5 sm:w-[18rem]">
+                    <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                    <input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Search board..."
+                      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 shrink-0 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </label>
+
+                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+                  
                   <select
                     value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value as any)}
-                    className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer border-none p-0 focus:ring-0 shrink-0"
+                    onChange={(e) => setSearchFilter(e.target.value as 'all' | 'title' | 'classification' | 'lane')}
+                    className="appearance-none !bg-transparent dark:!bg-transparent border-none pl-3 pr-8 py-2.5 text-sm font-medium text-slate-600 outline-none focus:outline-none focus:ring-0 cursor-pointer dark:!text-slate-300 bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] dark:bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23cbd5e1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[position:right_8px_center] bg-[length:16px_16px]"
                   >
-                    <option value="all">All fields</option>
-                    <option value="title">Card name</option>
-                    <option value="classification">Classification</option>
-                    <option value="lane">Lane name</option>
+                    <option value="all" className="bg-white dark:bg-slate-800">All fields</option>
+                    <option value="title" className="bg-white dark:bg-slate-800">Title</option>
+                    <option value="classification" className="bg-white dark:bg-slate-800">Classification</option>
+                    <option value="lane" className="bg-white dark:bg-slate-800">Lane Name</option>
                   </select>
-                </label>
+                </div>
                 
-                <label className="flex items-center gap-2 ml-2 cursor-pointer group w-fit">
+                {/* Sort Checkbox */}
+                <label className="flex items-center gap-2 px-1 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={sortByDueDate}
                     onChange={(e) => setSortByDueDate(e.target.checked)}
-                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 accent-cyan-600"
+                    className="h-3.5 w-3.5 rounded border border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-cyan-500 cursor-pointer"
                   />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-slate-700 transition">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Sort by earliest completion time
                   </span>
                 </label>
               </div>
 
+              <div className="h-8 w-px bg-slate-200 hidden sm:block dark:bg-slate-700 mx-2" />
+
               <button
                 type="button"
                 onClick={() => addColumn()}
-                className="inline-flex h-fit items-center justify-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-md hover:shadow-lg hover:-translate-y-0.5"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
                 Add lane
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsHistoryOpen(true)}
-                className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800 dark:border-slate-800 dark:bg-slate-900"
-                title="View Board Activity History"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-cyan-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-cyan-400"
+                title="Activity History"
               >
-                <History className="h-5 w-5" />
+                <History className="h-4 w-4" />
               </button>
 
-              <div className="relative">
+              <div className="relative ml-2">
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  aria-label="Menu"
-                  className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-md transition hover:scale-105 ring-2 ring-white dark:ring-slate-700 dark:from-cyan-600 dark:to-blue-700 focus:outline-none"
+                  aria-label="User menu"
                 >
-                  <Menu className="h-5 w-5" />
+                  <span className="text-[1.1rem] font-bold font-serif italic drop-shadow-sm">
+                    {user?.email?.charAt(0).toUpperCase() || 'U'}
+                  </span>
                 </button>
 
                 {isMenuOpen && (
@@ -1992,64 +2075,56 @@ function App() {
                       className="fixed inset-0 z-10"
                       onClick={() => setIsMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-20">
-                      <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Account</p>
-                        <p className="max-w-[12rem] truncate text-sm font-medium text-slate-700">
-                          {user.email}
-                        </p>
+                    <div className="absolute right-0 mt-3 w-64 origin-top-right rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl z-20 dark:border-slate-700 dark:bg-slate-800">
+                      <div className="flex items-center gap-3 border-b border-slate-100 px-3 py-3 dark:border-slate-700/60">
+                        {/* Upgraded Inner Dropdown Avatar */}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-900 dark:from-cyan-600 dark:to-blue-700 shadow-inner">
+                           <span className="text-[1.1rem] font-bold font-serif italic text-white drop-shadow-sm">
+                            {user?.email?.charAt(0).toUpperCase() || 'U'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Signed in as</p>
+                          <p className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {user?.email}
+                          </p>
+                        </div>
                       </div>
                       
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsDarkMode(!isDarkMode)
-                          setIsMenuOpen(false)
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-                          isDarkMode 
-                            ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' 
-                            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                        }`}
-                      >
-                        {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
-                        {isDarkMode ? 'Switch to Light' : 'Switch to Dark'}
-                      </button>
+                      <div className="mt-2 space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDarkMode(!isDarkMode)
+                            setIsMenuOpen(false)
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                            isDarkMode 
+                              ? 'text-amber-600 hover:bg-amber-50/50 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30' 
+                              : 'text-indigo-600 hover:bg-indigo-50/50 hover:text-indigo-700'
+                          }`}
+                        >
+                          {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                          {isDarkMode ? 'Switch to Light mode' : 'Switch to Dark mode'}
+                        </button>
 
-                      
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleSignOut()
-                          setIsMenuOpen(false)
-                        }}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50/50 hover:text-rose-700"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Sign out
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSignOut()
+                            setIsMenuOpen(false)
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50/50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Sign out
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {doneCards} completed
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Updated just now
-            </span>
-            {searchQuery ? (
-              <span className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">
-                {visibleCardCount} shown
-              </span>
-            ) : null}
           </div>
         </header>
 
