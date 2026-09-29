@@ -41,9 +41,27 @@ import {
   EyeOff,
   LockKeyhole,
   Flame,
+  Bell,
+  BellRing,
 } from 'lucide-react'
 import type { Provider, User } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
+
+// Helper to convert VAPID public key
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/')
+
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
 
 type Classification = string
 
@@ -965,6 +983,8 @@ function App() {
   })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [earlyCompletionsCount, setEarlyCompletionsCount] = useState<number>(0)
+  const [isPushEnabled, setIsPushEnabled] = useState(false)
+  const [isSubscribing, setIsSubscribing] = useState(false)
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
@@ -977,6 +997,72 @@ function App() {
 
   const deleteTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const moveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Check if push is already enabled
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.pushManager.getSubscription().then((subscription) => {
+          setIsPushEnabled(!!subscription)
+        })
+      })
+    }
+  }, [])
+
+  const handleSubscribeToPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setBoardError('Push notifications are not supported by your browser.')
+      return
+    }
+
+    try {
+      setIsSubscribing(true)
+      const permission = await Notification.requestPermission()
+      
+      if (permission !== 'granted') {
+        setBoardError('You must grant permission to receive notifications.')
+        setIsSubscribing(false)
+        return
+      }
+
+      const registration = await navigator.serviceWorker.ready
+      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+      
+      if (!vapidPublicKey) {
+        setBoardError('VAPID public key is missing from environment variables.')
+        setIsSubscribing(false)
+        return
+      }
+
+      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey
+      })
+
+      // Send to Supabase
+      const { error } = await supabase.from('push_subscriptions').upsert({
+        user_id: user?.id,
+        subscription: subscription.toJSON()
+      }, { onConflict: 'user_id' })
+
+      if (error) throw error
+
+      setIsPushEnabled(true)
+      setUndoToast({
+        visible: true,
+        message: 'Push notifications enabled!',
+        actionType: 'move', // Reusing the toast type just to display
+        data: { prevColumns: columnsRef.current } 
+      })
+    } catch (err: any) {
+      console.error('Failed to subscribe:', err)
+      setBoardError(err.message || 'Failed to subscribe to push notifications.')
+    } finally {
+      setIsSubscribing(false)
+    }
+  }
 
   const columnsRef = useRef(columns)
   useEffect(() => {
@@ -2075,6 +2161,26 @@ function App() {
               </div>
 
               <div className="h-8 w-px bg-slate-200 hidden sm:block dark:bg-slate-700 mx-2" />
+
+              <button
+                type="button"
+                onClick={handleSubscribeToPush}
+                disabled={isSubscribing || isPushEnabled}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition ${
+                  isPushEnabled
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-500 cursor-default'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-cyan-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-cyan-400'
+                }`}
+                title={isPushEnabled ? "Notifications Enabled" : "Enable Push Notifications"}
+              >
+                {isSubscribing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isPushEnabled ? (
+                  <BellRing className="h-4 w-4" />
+                ) : (
+                  <Bell className="h-4 w-4" />
+                )}
+              </button>
 
               <button
                 type="button"
