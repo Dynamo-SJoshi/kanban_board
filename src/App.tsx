@@ -2162,55 +2162,57 @@ function App() {
 
               <div className="h-8 w-px bg-slate-200 hidden sm:block dark:bg-slate-700 mx-2" />
 
-              <button
-                type="button"
-                onClick={handleSubscribeToPush}
-                disabled={isSubscribing || isPushEnabled}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition ${
-                  isPushEnabled
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-500 cursor-default'
-                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-cyan-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-cyan-400'
-                }`}
-                title={isPushEnabled ? "Notifications Enabled" : "Enable Push Notifications"}
-              >
-                {isSubscribing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isPushEnabled ? (
-                  <BellRing className="h-4 w-4" />
-                ) : (
-                  <Bell className="h-4 w-4" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => addColumn()}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-md hover:shadow-lg hover:-translate-y-0.5"
-              >
-                <Plus className="h-4 w-4" />
-                Add lane
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsHistoryOpen(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-cyan-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-cyan-400"
-                title="Activity History"
-              >
-                <History className="h-4 w-4" />
-              </button>
-
-              <div className="relative ml-2">
+              <div className="flex flex-row items-center justify-between w-full sm:w-auto gap-2 sm:gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-md transition hover:scale-105 ring-2 ring-white dark:ring-slate-700 dark:from-cyan-600 dark:to-blue-700 focus:outline-none"
-                  aria-label="User menu"
+                  onClick={() => addColumn()}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-cyan-600 dark:hover:bg-cyan-500 shadow-md hover:shadow-lg hover:-translate-y-0.5"
                 >
-                  <span className="text-[1.1rem] font-bold font-serif italic drop-shadow-sm">
-                    {user?.email?.charAt(0).toUpperCase() || 'U'}
-                  </span>
+                  <Plus className="h-4 w-4" />
+                  Add lane
                 </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSubscribeToPush}
+                    disabled={isSubscribing || isPushEnabled}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm transition ${
+                      isPushEnabled
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-500 cursor-default'
+                        : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-cyan-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-cyan-400'
+                    }`}
+                    title={isPushEnabled ? "Notifications Enabled" : "Enable Push Notifications"}
+                  >
+                    {isSubscribing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isPushEnabled ? (
+                      <BellRing className="h-4 w-4" />
+                    ) : (
+                      <Bell className="h-4 w-4" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryOpen(true)}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-cyan-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-cyan-400"
+                    title="Activity History"
+                  >
+                    <History className="h-4 w-4" />
+                  </button>
+
+                  <div className="relative shrink-0 ml-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsMenuOpen(!isMenuOpen)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-md transition hover:scale-105 ring-2 ring-white dark:ring-slate-700 dark:from-cyan-600 dark:to-blue-700 focus:outline-none"
+                      aria-label="User menu"
+                    >
+                      <span className="text-[1.1rem] font-bold font-serif italic drop-shadow-sm">
+                        {user?.email?.charAt(0).toUpperCase() || 'U'}
+                      </span>
+                    </button>
 
                 {isMenuOpen && (
                   <>
