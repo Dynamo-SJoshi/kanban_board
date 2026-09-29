@@ -2271,7 +2271,9 @@ function App() {
               </div>
             </div>
           </div>
-        </header>
+        </div>
+      </div>
+    </header>
 
         {boardError ? (
           <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">
