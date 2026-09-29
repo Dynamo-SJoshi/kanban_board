@@ -40,6 +40,7 @@ import {
   Eye,
   EyeOff,
   LockKeyhole,
+  Flame,
 } from 'lucide-react'
 import type { Provider, User } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
@@ -963,6 +964,7 @@ function App() {
     return saved === 'true'
   })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [earlyCompletionsCount, setEarlyCompletionsCount] = useState<number>(0)
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
@@ -1080,7 +1082,7 @@ function App() {
         activeBoard = createdBoard
       }
 
-      const [{ data: columnRows, error: columnsError }, { data: cardRows, error: cardsError }] =
+      const [{ data: columnRows, error: columnsError }, { data: cardRows, error: cardsError }, { data: statsData }] =
         await Promise.all([
           supabase
             .from('columns')
@@ -1093,6 +1095,11 @@ function App() {
             .select('id, column_id, title, description, due, classification, position')
             .eq('owner_id', currentUser.id)
             .order('position', { ascending: true }),
+          supabase
+            .from('user_stats')
+            .select('early_completions_count')
+            .eq('user_id', currentUser.id)
+            .maybeSingle(),
         ])
 
       if (columnsError) {
@@ -1104,6 +1111,10 @@ function App() {
       }
 
       if (!isMounted) return
+
+      if (statsData) {
+        setEarlyCompletionsCount(statsData.early_completions_count || 0)
+      }
 
       setBoardId(activeBoard.id)
       setColumns(
@@ -1602,6 +1613,23 @@ function App() {
       return
     }
 
+    // Check if this was marked as done early
+    const wasDone = currentCard.progress === 'Done' || currentCard.classification === 'Done'
+    const isNowDone = newProgress === 'Done' || newClassification === 'Done'
+
+    if (!wasDone && isNowDone && newDue) {
+      const dueTime = new Date(newDue + 'T00:00:00').getTime()
+      const today = new Date().setHours(0, 0, 0, 0)
+      
+      if (today <= dueTime) {
+        setEarlyCompletionsCount((prev) => prev + 1)
+        // Call the RPC to increment in the database safely
+        supabase.rpc('increment_early_completions').then(({ error: rpcError }) => {
+          if (rpcError) console.error('Failed to increment early completions:', rpcError)
+        })
+      }
+    }
+
     setColumns((previousColumns) =>
       previousColumns.map((col) => {
         if (col.id !== columnId) return col
@@ -1969,6 +1997,15 @@ function App() {
                         <CalendarDays className="h-4 w-4" />
                         {overdueCards} Overdue
                       </span>
+                      {earlyCompletionsCount > 0 && (
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">•</span>
+                          <span className="flex items-center gap-1 text-[15px] font-bold text-amber-500 dark:text-amber-400" title="Completed on or before due date">
+                            <Flame className="h-4 w-4" />
+                            {earlyCompletionsCount} Early
+                          </span>
+                        </>
+                      )}
                     </div>
                   ) : (
                     // The "Title" View
