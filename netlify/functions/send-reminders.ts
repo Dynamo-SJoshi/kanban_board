@@ -5,18 +5,21 @@ import { createClient } from "@supabase/supabase-js";
 export default async (req: Request) => {
   const {
     SUPABASE_URL,
+    VITE_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
     VITE_VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY
   } = process.env;
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !VITE_VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  const finalSupabaseUrl = SUPABASE_URL || VITE_SUPABASE_URL;
+
+  if (!finalSupabaseUrl || !SUPABASE_SERVICE_ROLE_KEY || !VITE_VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     console.error("Missing environment variables for scheduled function");
     return new Response("Missing env vars", { status: 500 });
   }
 
   // Setup Supabase (Using service role key to bypass RLS and read all cards)
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(finalSupabaseUrl, SUPABASE_SERVICE_ROLE_KEY);
 
   // Setup Web Push
   webpush.setVapidDetails(
