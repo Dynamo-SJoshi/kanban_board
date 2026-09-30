@@ -98,7 +98,12 @@ export default async (req: Request) => {
   }
 };
 
-// This tells Netlify to run this function every day at 9:00 AM UTC
+// This tells Netlify to run this function 4 times a day (9am, 1pm, 6pm, 12am IST)
+// IST is UTC+5:30. Therefore:
+// 12:00 AM IST = 18:30 UTC (previous day)
+// 09:00 AM IST = 03:30 UTC
+// 01:00 PM IST = 07:30 UTC
+// 06:00 PM IST = 12:30 UTC
 export const config: Config = {
-  schedule: "0 9 * * *",
+  schedule: "30 3,7,12,18 * * *",
 };
