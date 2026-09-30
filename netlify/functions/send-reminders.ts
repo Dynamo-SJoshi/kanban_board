@@ -47,33 +47,39 @@ export default async (req: Request) => {
       return !isDone;
     });
 
-    if (activeOverdueCards.length === 0) {
-      return new Response("No tasks due today", { status: 200 });
-    }
-
-    // 2. Collect unique users who need notifications
-    const userIds = [...new Set(activeOverdueCards.map(c => c.owner_id))];
-
-    // 3. Fetch their push subscriptions
+    // 2. Collect ALL users who have push subscriptions (instead of just those with overdue tasks)
     const { data: subscriptions, error: subsError } = await supabase
       .from('push_subscriptions')
-      .select('user_id, subscription')
-      .in('user_id', userIds);
+      .select('user_id, subscription');
 
     if (subsError) throw subsError;
 
+    if (!subscriptions || subscriptions.length === 0) {
+      return new Response("No users subscribed", { status: 200 });
+    }
+
     let successCount = 0;
 
-    // 4. Send the notifications
+    // 3. Send the notifications to EVERY subscribed user
     for (const subRecord of subscriptions) {
       // Find how many tasks are due for this specific user
       const userTasksCount = activeOverdueCards.filter(c => c.owner_id === subRecord.user_id).length;
       
-      const payload = JSON.stringify({
-        title: "Northstar Board",
-        body: `Your goals are calling! 🎯 You have ${userTasksCount} task${userTasksCount > 1 ? 's' : ''} due today or overdue. Check your board to keep the momentum going!`,
-        icon: "/favicon.png",
-      });
+      let payload;
+      
+      if (userTasksCount > 0) {
+        payload = JSON.stringify({
+          title: "Northstar Board",
+          body: `Your goals are calling! 🎯 You have ${userTasksCount} task${userTasksCount > 1 ? 's' : ''} due today or overdue. Check your board to keep the momentum going!`,
+          icon: "/favicon.png",
+        });
+      } else {
+        payload = JSON.stringify({
+          title: "Northstar Board",
+          body: `All caught up! ✨ Did you forget to add any new tasks to your board?`,
+          icon: "/favicon.png",
+        });
+      }
 
       try {
         await webpush.sendNotification(subRecord.subscription, payload);
