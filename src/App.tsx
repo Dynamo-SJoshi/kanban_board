@@ -2073,12 +2073,12 @@ function App() {
                 <div className="mt-0.5 flex h-7 items-center">
                   {isShowingStats ? (
                     // The "Stats" View
-                    <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
                       <span className="flex items-center gap-1.5 text-[15px] font-bold text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="h-4 w-4" />
                         {doneCards} Completed
                       </span>
-                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="hidden sm:inline text-slate-300 dark:text-slate-600">•</span>
                       <span className="flex items-center gap-1.5 text-[15px] font-bold text-rose-600 dark:text-rose-400">
                         <CalendarDays className="h-4 w-4" />
                         {overdueCards} Overdue
